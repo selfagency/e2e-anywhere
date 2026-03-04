@@ -1,10 +1,12 @@
 /**
- * Key Derivation Function — HKDF-SHA-512 wrapper for OTRv4.
+ * Key Derivation Function — HKDF-SHA-512 and HMAC-SHA-512 wrappers for OTRv4.
  *
  * Usage:
- *   const key = derive({ ikm, salt, info: encode('MyContext'), length: 32 });
+ *   const key = deriveKey({ ikm, salt, info: encode('MyContext'), length: 32 });
+ *   const mac  = hmac({ key, message });
  */
 
+import { hmac as nobleHmac } from '@noble/hashes/hmac.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha512 } from '@noble/hashes/sha2.js';
 
@@ -22,12 +24,31 @@ export interface DeriveParams {
   length?: number;
 }
 
+export interface HmacParams {
+  /** Secret key. */
+  key: Uint8Array;
+  /** Message to authenticate. */
+  message: Uint8Array;
+}
+
 /**
  * Derive key material using HKDF-SHA-512.
  *
  * @returns Derived key of `length` bytes. The same inputs always produce
  *          the same output (deterministic).
  */
-export function derive({ ikm, salt, info, length = HASH_LEN }: DeriveParams): Uint8Array {
+export function deriveKey({ ikm, salt, info, length = HASH_LEN }: DeriveParams): Uint8Array {
   return hkdf(sha512, ikm, salt, info, length);
+}
+
+/** Alias for {@link deriveKey}. */
+export const derive = deriveKey;
+
+/**
+ * Compute HMAC-SHA-512 over `message` authenticated with `key`.
+ *
+ * @returns 64-byte authentication tag.
+ */
+export function hmac({ key, message }: HmacParams): Uint8Array {
+  return nobleHmac(sha512, key, message);
 }
