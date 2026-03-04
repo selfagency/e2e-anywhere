@@ -1,9 +1,11 @@
 ---
-id: e2e-anywhere-oysc
+# e2e-anywhere-oysc
 title: 2.6 Adopt @noble crypto dependencies
-status: in-progress
+status: completed
 type: feature
 priority: critical
+created_at: 2026-03-04T15:25:34Z
+updated_at: 2026-03-04T15:53:56Z
 parent: e2e-anywhere-371s
 ---
 
