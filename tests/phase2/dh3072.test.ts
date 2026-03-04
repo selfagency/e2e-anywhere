@@ -1,5 +1,6 @@
 import {
   DH_P,
+  DH_PUBLIC_KEY_BYTES,
   computeSharedSecret,
   deserializePublicKey,
   generateKeypair,
@@ -53,6 +54,31 @@ describe('phase 2.8 dh3072 primitives', () => {
     const serialized = serializePublicKey(publicKey);
     const deserialized = deserializePublicKey(serialized);
     expect(deserialized).toBe(publicKey);
+  });
+
+  describe('deserializePublicKey input validation', () => {
+    it('throws on a buffer shorter than 384 bytes', () => {
+      const short = new Uint8Array(383);
+      expect(() => deserializePublicKey(short)).toThrow(RangeError);
+      expect(() => deserializePublicKey(short)).toThrow('384 bytes');
+    });
+
+    it('throws on a buffer longer than 384 bytes', () => {
+      const long = new Uint8Array(385);
+      expect(() => deserializePublicKey(long)).toThrow(RangeError);
+      expect(() => deserializePublicKey(long)).toThrow('384 bytes');
+    });
+
+    it('throws on a zero-filled 384-byte buffer (out-of-range value 0)', () => {
+      const zeroes = new Uint8Array(DH_PUBLIC_KEY_BYTES);
+      expect(() => deserializePublicKey(zeroes)).toThrow('public key out of valid range');
+    });
+
+    it('throws on a 384-byte buffer encoding p − 1 (out-of-range)', () => {
+      // p − 1 is outside [2, p − 2]
+      const bytes = serializePublicKey(DH_P - 1n);
+      expect(() => deserializePublicKey(bytes)).toThrow('public key out of valid range');
+    });
   });
 
   describe('validateDHGroupMembership', () => {

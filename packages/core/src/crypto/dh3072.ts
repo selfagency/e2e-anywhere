@@ -115,11 +115,17 @@ export function serializePublicKey(pubKey: bigint): Uint8Array {
 
 /**
  * Deserialize a 384-byte big-endian buffer to a public key bigint.
+ * Throws RangeError if the buffer is not exactly DH_PUBLIC_KEY_BYTES long,
+ * or if the resulting value is outside the valid group range [2, p − 2].
  */
 export function deserializePublicKey(bytes: Uint8Array): bigint {
+  if (bytes.byteLength !== DH_PUBLIC_KEY_BYTES) {
+    throw new RangeError(`public key buffer must be exactly ${DH_PUBLIC_KEY_BYTES} bytes, got ${bytes.byteLength}`);
+  }
   let result = 0n;
   for (const byte of bytes) {
     result = (result << 8n) | BigInt(byte);
   }
+  validatePublicKey(result);
   return result;
 }
