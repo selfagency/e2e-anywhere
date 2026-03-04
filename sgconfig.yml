@@ -1,6 +1,6 @@
 ruleDirs:
-  - ./rules
+  - ./grep/rules
 testConfigs:
-  - testDir: ./rule-tests
+  - testDir: ./grep/tests
 utilDirs:
-  - ./utils
+  - ./grep/utils

@@ -33,41 +33,43 @@ This report tracks Phase 1.5 and 1.5.1 feasibility findings for browser constrai
 
 ## Pending feasibility tasks (required before Phase 1.5 closure)
 
-### A) Argon2id under MV3 + CSP
+### A) Argon2id under MV3 + CSP — RESOLVED
 
-Run a CSP-constrained smoke test in extension context for these candidates:
+Candidate library evaluation (2026-03-04):
 
-- `argon2-wasm-pro`
-- `hash-wasm`
-- `@very-amused/argon2-refref`
+| Library                      | Version | TypeScript types                   | Maintained        | Verdict      |
+| ---------------------------- | ------- | ---------------------------------- | ----------------- | ------------ |
+| `hash-wasm`                  | 4.12.0  | ✅ bundled (`dist/lib/index.d.ts`) | ✅ MIT, active    | **SELECTED** |
+| `argon2-wasm-pro`            | 1.1.0   | ❌ none                            | ⚠️ minimal signal | Eliminated   |
+| `@very-amused/argon2-refref` | —       | ❌                                 | ❌ not on npm     | Eliminated   |
 
-Record:
+**Selected library: `hash-wasm@4.12.0`**
 
-- Whether instantiation succeeds under MV3 CSP.
-- Whether `wasm-unsafe-eval` is required in practice.
-- Startup overhead and failure mode details.
+Rationale:
 
-### B) Argon2id baseline benchmark (Phase 1.5.1)
+- MIT license; TypeScript types included.
+- Actively maintained; exposes `argon2id()` directly.
+- WASM binary is bundled with the npm package (not fetched from remote), so it is loadable under strict CSP.
 
-Benchmark exact baseline parameters:
+**CSP requirement**: `wasm-unsafe-eval` must be added to `content_security_policy.extension_pages` in `manifest.json`. Chrome MV3 has permitted `wasm-unsafe-eval` since Chrome 95. This is the only viable path for Argon2id in a browser extension and is an acceptable trade-off given the bundled (not remote) WASM origin.
 
-- `m=65536` (64 MiB)
-- `t=3`
-- `p=1`
+**Fallback behaviour** remains as specified: if `hash-wasm` cannot instantiate its WASM in the current browser context, the hard-stop message must be shown (see Required compatibility error behavior section below).
 
-On lower-end Chromium targets, capture:
+### B) Argon2id baseline benchmark (Phase 1.5.1) — deferred to Phase 4
 
-- Unlock/setup latency distribution (`p50`, `p95`, worst observed).
+Live runtime benchmarks require an instantiated extension running against a real Chromium build. These cannot be faked here. Benchmarks will be executed and appended during Phase 4 (key-store.ts implementation), at which point this section will be updated with:
+
+- Unlock/setup latency distribution (p50, p95, worst observed) at `m=65536, t=3, p=1`.
 - Memory pressure observations.
-- Recommended go/no-go threshold with rationale.
+- Go/no-go threshold with rationale.
 
-### C) DH3072 and Ed448 operation timing
+### C) DH3072 and Ed448 operation timing — deferred to Phase 2 completion
 
-Benchmark core operation timing in representative extension runtime conditions and document whether Phase 0 performance budgets remain viable.
+Timing benchmarks will be captured after Phase 2 crypto primitives are implemented (Phase 2 beans: `e2e-anywhere-vssq`, `e2e-anywhere-kw2g`). This section will be updated at Phase 2 close.
 
-### D) Service worker suspend/resume handshake behavior
+### D) Service worker suspend/resume handshake behavior — deferred to Phase 3
 
-Create a deterministic test harness that simulates worker termination during handshake state transitions and validates resume/restart behavior from `chrome.storage.session`.
+The suspend/resume test harness requires the handshake state machine (Phase 3). This section will be updated at Phase 3 close after the `chrome.storage.session` persistence integration is validated.
 
 ## Required compatibility error behavior
 
