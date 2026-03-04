@@ -199,7 +199,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true
-    if: false # disabled — re-enable by removing this line
 
     steps:
       - uses: actions/checkout@v4
