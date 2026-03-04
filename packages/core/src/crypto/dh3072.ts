@@ -28,6 +28,15 @@ export const DH_P = BigInt(
 
 const DH_G = 2n;
 
+/**
+ * Prime-order subgroup exponent: q = (p − 1) / 2.
+ * For this safe-prime group, q is prime.  A public key is in the intended
+ * prime-order subgroup iff pubKey^q ≡ 1 (mod p) (Legendre symbol check).
+ * Note: g = 2 is a quadratic residue for this prime (p ≡ 7 mod 8), so all
+ * keys produced by generateKeypair() already satisfy this constraint.
+ */
+const DH_Q = (DH_P - 1n) / 2n;
+
 /** Serialized public key length in bytes (384 = 3072 bits / 8). */
 export const DH_PUBLIC_KEY_BYTES = 384;
 
@@ -73,27 +82,31 @@ export function generateKeypair(): DHKeypair {
 }
 
 /**
- * Validate that a public key is in the valid range [2, p − 2].
- * Throws RangeError on invalid input (prevents small-subgroup attacks).
+ * Validate that a public key is in the valid range [2, p − 2] AND
+ * in the prime-order subgroup (Legendre symbol check: pubKey^q mod p === 1).
+ * Throws RangeError on invalid input (prevents small-subgroup/subgroup-confinement attacks).
  */
 export function validatePublicKey(pubKey: bigint): void {
   if (pubKey < 2n || pubKey > DH_P - 2n) {
     throw new RangeError('public key out of valid range');
   }
+  if (modPow(pubKey, DH_Q, DH_P) !== 1n) {
+    throw new RangeError('public key not in prime-order subgroup');
+  }
 }
 
 /**
  * Boolean-returning group-membership check.
- * Returns true iff pubKey is in the valid DH group range [2, p − 2].
- * Equivalent to validatePublicKey but does not throw.
+ * Returns true iff pubKey is in [2, p − 2] AND in the prime-order subgroup
+ * (i.e., pubKey^q ≡ 1 mod p).  Prevents subgroup-confinement attacks.
  */
 export function validateDHGroupMembership(pubKey: bigint): boolean {
-  return pubKey >= 2n && pubKey <= DH_P - 2n;
+  return pubKey >= 2n && pubKey <= DH_P - 2n && modPow(pubKey, DH_Q, DH_P) === 1n;
 }
 
 /**
  * Compute DH shared secret.
- * Validates pubKey is in [2, p − 2] before computing.
+ * Validates pubKey is in [2, p − 2] and in the prime-order subgroup before computing.
  */
 export function computeSharedSecret(privateKey: bigint, pubKey: bigint): bigint {
   validatePublicKey(pubKey);

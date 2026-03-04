@@ -77,11 +77,14 @@ describe('phase 2.8 dh3072 primitives', () => {
       expect(validateDHGroupMembership(DH_P)).toBe(false);
     });
 
-    it('accepts p − 2 (valid upper boundary)', () => {
-      expect(validateDHGroupMembership(DH_P - 2n)).toBe(true);
+    it('rejects p − 2 (non-QR: not in prime-order subgroup)', () => {
+      // p − 2 ≡ −2 (mod p); Legendre(−2) = Legendre(−1)·Legendre(2) = −1 for this prime,
+      // so p − 2 is not a quadratic residue and must be rejected.
+      expect(validateDHGroupMembership(DH_P - 2n)).toBe(false);
     });
 
-    it('accepts 2 (valid lower boundary)', () => {
+    it('accepts 2 (valid lower boundary; QR for this prime)', () => {
+      // g = 2 satisfies 2^((p−1)/2) ≡ 1 (mod p) for p ≡ 7 (mod 8).
       expect(validateDHGroupMembership(2n)).toBe(true);
     });
   });
