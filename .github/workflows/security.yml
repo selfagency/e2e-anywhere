@@ -36,7 +36,6 @@ jobs:
     name: SAST (semgrep + eslint + checkov)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +97,6 @@ jobs:
     name: SCA (trivy + grype + pnpm audit)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -152,7 +150,6 @@ jobs:
     name: TLS analysis (cryptolyzer)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
     # Set DAST_TARGET_HOST (bare hostname, e.g. example.com) to enable this job.
     if: ${{ vars.DAST_TARGET_HOST != '' }}
 
@@ -187,7 +184,6 @@ jobs:
     name: Secret detection (gitleaks)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -213,7 +209,6 @@ jobs:
     name: Supply-chain scan (gitxray)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -247,3 +242,38 @@ jobs:
           name: gitxray-report
           path: gitxray-report.html
           retention-days: 30
+
+  # ── 6. Security gate ───────────────────────────────────────────────────────
+  security-gate:
+    name: Security gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [sast, sca, cryptolyzer, secrets, gitxray]
+
+    steps:
+      - name: Verify all security jobs passed or were skipped
+        env:
+          RESULT_SAST: ${{ needs.sast.result }}
+          RESULT_SCA: ${{ needs.sca.result }}
+          RESULT_CRYPTOLYZER: ${{ needs.cryptolyzer.result }}
+          RESULT_SECRETS: ${{ needs.secrets.result }}
+          RESULT_GITXRAY: ${{ needs.gitxray.result }}
+        run: |
+          declare -A jobs=(
+            [sast]="$RESULT_SAST"
+            [sca]="$RESULT_SCA"
+            [cryptolyzer]="$RESULT_CRYPTOLYZER"
+            [secrets]="$RESULT_SECRETS"
+            [gitxray]="$RESULT_GITXRAY"
+          )
+          failed=0
+          for job in "${!jobs[@]}"; do
+            result="${jobs[$job]}"
+            echo "$job: $result"
+            if [[ "$result" == "failure" ]]; then
+              echo "::error::Security job '$job' failed"
+              failed=1
+            fi
+          done
+          [[ $failed -eq 0 ]] || exit 1
+          echo "All security jobs passed or were skipped."

@@ -43,6 +43,7 @@ async function doFlush(): Promise<void> {
   if (pendingMetrics.length === 0) return;
   const toWrite = pendingMetrics.splice(0);
   const result = await chrome.storage.local.get(STORAGE_KEY);
+  // eslint-disable-next-line security/detect-object-injection
   const existing: MetricRecord[] = Array.isArray(result[STORAGE_KEY]) ? (result[STORAGE_KEY] as MetricRecord[]) : [];
   // Merge and cap to prevent unbounded storage growth.
   const merged = [...existing, ...toWrite].slice(-MAX_ENTRIES);
@@ -69,6 +70,7 @@ function appendMetric(metric: Metric): void {
  */
 export async function beginPerformanceCollection(): Promise<void> {
   const result = await chrome.storage.local.get(DEBUG_FLAG);
+  // eslint-disable-next-line security/detect-object-injection
   if (!result[DEBUG_FLAG]) {
     return;
   }
@@ -79,6 +81,7 @@ export async function beginPerformanceCollection(): Promise<void> {
 
 export async function exportMetricsForUser(): Promise<string> {
   const result = await chrome.storage.local.get(STORAGE_KEY);
+  // eslint-disable-next-line security/detect-object-injection
   const metrics: MetricRecord[] = Array.isArray(result[STORAGE_KEY]) ? (result[STORAGE_KEY] as MetricRecord[]) : [];
   return JSON.stringify(metrics, null, 2);
 }
