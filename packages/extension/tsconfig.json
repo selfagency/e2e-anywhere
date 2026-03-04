@@ -5,13 +5,7 @@
     "noEmit": true,
     "rootDir": "src",
     "resolveJsonModule": true,
-    "types": [
-      "chrome",
-      "node"
-    ]
+    "types": ["chrome", "node"]
   },
-  "include": [
-    "src/**/*.ts",
-    "locales/**/*.json"
-  ]
+  "include": ["src/**/*.ts", "locales/**/*.json"]
 }
