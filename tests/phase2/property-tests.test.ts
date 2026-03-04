@@ -79,8 +79,8 @@ describe('ed448 properties', () => {
     }
   });
 
-  it('[∀ keypair] two signatures of the same message are distinct (Ed448 is deterministic but message-keyed)', () => {
-    // Ed448 as used by @noble is deterministic — same sk+msg gives same sig.
+  it('[∀ keypair] two signatures of the same message are equal (Ed448 signing is deterministic)', () => {
+    // Ed448 as used by @noble is deterministic — same sk+msg always gives same sig.
     // Verify this determinism property holds.
     for (let i = 0; i < ITERATIONS; i++) {
       const { privateKey, publicKey } = ed448Keypair();
