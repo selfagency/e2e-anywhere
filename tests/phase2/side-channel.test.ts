@@ -17,9 +17,9 @@
  *   For rigorous timing analysis see docs/security/security-invariants.md.
  */
 
-import { describe, expect, it } from 'vitest';
 import { generateKeypair, sign, verify } from '$core/crypto/ed448.js';
-import { rvrf, rsig, RING_SIG_BYTES } from '$core/crypto/ring-sig.js';
+import { RING_SIG_BYTES, rsig, rvrf } from '$core/crypto/ring-sig.js';
+import { describe, expect, it } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Timing helpers

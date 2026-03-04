@@ -133,8 +133,8 @@ The following items must be verified during every security-relevant PR review:
 - Actively maintained with a recent release history
 - No transitive production dependencies (only test/dev deps)
 
-**CSP requirements:** The extension manifest must include `wasm-unsafe-eval` in `content_security_policy.extension_pages`.  
-This is the minimum additional CSP surface required for WASM execution.  
+**CSP requirements:** The extension manifest must include `wasm-unsafe-eval` in `content_security_policy.extension_pages`.
+This is the minimum additional CSP surface required for WASM execution.
 No `unsafe-eval` or `unsafe-inline` for scripts is required or permitted.
 
 **Baseline KDF parameters (v1):**

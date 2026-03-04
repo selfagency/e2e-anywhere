@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import { generateKeypair } from '$core/crypto/ed448.js';
 import { rsig, rvrf } from '$core/crypto/ring-sig.js';
+import { describe, expect, it } from 'vitest';
 
 // Thin adapter so test code stays concise
 function makeKeypair(): { sk: Uint8Array; pk: Uint8Array } {
