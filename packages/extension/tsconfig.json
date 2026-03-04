@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "composite": true,
-    "noEmit": true,
+    "emitDeclarationOnly": true,
     "rootDir": "src",
     "resolveJsonModule": true,
     "types": ["chrome", "node"]
