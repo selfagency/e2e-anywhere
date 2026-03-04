@@ -34,6 +34,7 @@ Primary goals:
 - Malicious browser extension with overlapping privileges.
 - Local attacker with memory or process inspection capability.
 - Supply-chain attacker (dependency compromise or distribution-channel compromise).
+- Zero-permission sibling extension exploiting exposed message interfaces.
 
 ## Assumptions
 
@@ -53,6 +54,72 @@ Primary goals:
   - Session-map contents may reveal conversation participants.
 - Dependency and release supply-chain compromise.
 - Manifest/permission drift and storage-envelope corruption.
+
+## Browser extension attack surface
+
+This section documents the extension-specific threat surface derived from the three-context architecture (background script, content script, popup) and known exploitation patterns documented by the GitHub Security Lab and OWASP.
+
+### Context privilege hierarchy
+
+All three extension contexts are trusted code, but they have distinct privilege levels and attack exposure:
+
+| Context                     | Extension API access                | DOM access                                     | Attacker exposure                                                              |
+| --------------------------- | ----------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| Background (service worker) | Full — all permitted Extension APIs | None                                           | Via messages from content scripts, `onMessageExternal`, or `onConnectExternal` |
+| Content script              | None (must message background)      | Full — runs in page context but isolated world | Directly exposed to attacker-controlled page DOM and JS                        |
+| Popup                       | Full — all permitted Extension APIs | Own DOM only                                   | Via user interaction; if page can overlay/iframe the popup (clickjacking)      |
+
+**Critical:** XSS in the background script context grants Universal XSS (UXSS) — the ability to execute arbitrary JavaScript in any tab the extension has permission for. This is categorically more severe than XSS in a content script (which is scoped to one site).
+
+### Message passing attack vectors
+
+The most common privilege escalation path in extensions is unsanitized or unauthenticated message handling:
+
+- **`runtime.onMessage`**: Receives messages from extension's own content scripts. Content scripts run in the page context and may be influenced by attacker-controlled DOM. Treat all message payloads as untrusted.
+- **`runtime.onMessageExternal` / `runtime.onConnectExternal`**: Receives messages from other extensions or, if `external_connectable` is misconfigured, from arbitrary websites. A zero-permission malicious sibling extension can send arbitrary messages to this handler.
+- **`postMessage` from page**: Content scripts may relay `window.postMessage` events from the page to the background; failure to validate origin allows attacker-controlled pages to drive privileged operations.
+
+Attack chain: malicious page → content script relay (no origin check) → background handler (no sender check) → UXSS or data exfiltration via Extension API.
+
+### `external_connectable` misconfiguration
+
+If the manifest includes an `external_connectable` entry with a wildcard host or overly broad extension ID list, arbitrary websites or extensions can initiate privileged connections. This must be absent unless explicitly required, and if present, locked to specific known origins.
+
+### `web_accessible_resources` attack vectors
+
+Resources listed in `web_accessible_resources` are loadable by any web page. This introduces two attack vectors:
+
+1. **Iframe attack**: A malicious page loads an extension HTML page in a hidden iframe. If that page acts on URL parameters (e.g., `?action=export-keys`), the attacker can drive privileged operations.
+2. **Clickjacking**: A malicious page overlays the extension iframe transparently, tricking the user into confirming privileged actions (approving key exports, signing transactions, etc.).
+
+Mitigation: `web_accessible_resources` entries must use `use_dynamic_url: true` (randomizes UUID per session), be scoped to the minimum required host match patterns, and extension pages that perform sensitive actions must not accept URL parameters to initiate those actions.
+
+### `activeTab` permission
+
+The `activeTab` permission allows injection of JavaScript into any tab the user is currently interacting with. Critically, this permission does **not** appear in the Chrome install permission prompt and is therefore invisible to users. If an attacker can inject code into any path that triggers `tabs.executeScript()` or `scripting.executeScript()` with attacker-controlled `code`, this yields UXSS across all sites.
+
+### URL parameter injection in extension pages
+
+Extension HTML pages that read `location.search` or `location.hash` and pass values to privileged operations are vulnerable if those pages are web-accessible. Treat URL parameters as untrusted and never use them to gate security-sensitive decisions.
+
+### MV2 vs MV3 security regression risks
+
+This extension targets Manifest V3. The following MV2 attack vectors must not be reintroduced:
+
+- `unsafe-eval` in CSP — removed in MV3; must not be added back.
+- `tabs.executeScript({code: string})` — removed in MV3; replaced by `scripting.executeScript()` which accepts local files only.
+- `eval()`, `Function()`, `setTimeout(string)`, `setInterval(string)` — functionally equivalent to `unsafe-eval`; forbidden in all contexts regardless of manifest version.
+- Broad `permissions` (v2) vs explicit `host_permissions` (v3): v3 requires `host_permissions` to send cookies with requests; do not broaden permission scope to accommodate legacy patterns.
+
+### Extension-to-extension attack
+
+A malicious extension with zero permissions installed by the user can send arbitrary messages to `onMessageExternal` handlers. The threat is:
+
+1. Compromised or malicious extension installed alongside e2e-anywhere.
+2. Extension sends crafted message to e2e-anywhere's external message handler.
+3. If handler lacks sender ID validation, it processes the message as trusted.
+
+Mitigation: `onMessageExternal` handlers must validate `sender.id` against an explicit allowlist. If no legitimate cross-extension communication is required, `onMessageExternal` and `onConnectExternal` must not be registered at all.
 
 ## Out-of-scope for prevention (still documented)
 
