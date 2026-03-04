@@ -102,26 +102,15 @@ jobs:
         run: pnpm audit --json > pnpm-audit.json
         continue-on-error: true
 
-      - name: Install Trivy
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin
-
-      - name: Download Trivy HTML template
-        run: |
-          curl -sfL \
-            "https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl" \
-            -o trivy-html.tpl
-
       - name: Trivy filesystem scan
-        run: |
-          trivy fs \
-            --scanners vuln,secret \
-            --format template \
-            --template "@trivy-html.tpl" \
-            --output trivy-report.html \
-            .
-        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scanners: 'vuln,secret'
+          format: 'template'
+          template: '@contrib/html.tpl'
+          output: 'trivy-report.html'
+          exit-code: '0'
 
       - name: Upload SCA reports
         uses: actions/upload-artifact@v4
