@@ -1,19 +1,19 @@
 name: Security
 
-# Runs five scans in parallel:
-#   sast      — semgrep static analysis (OWASP Top 10 + security-audit rules)
-#   sca       — Trivy filesystem scan (vulns + secrets) + pnpm audit
-#   secrets   — Gitleaks full-history secret detection
-#   secrover  — Secrover all-in-one audit: deps (osv-scanner) + code (opengrep) → HTML report
+# Runs scans in parallel:
+#   sast      — SecObserve: Semgrep (security-audit + owasp) + ESLint
+#   sca       — SecObserve: Trivy filesystem (vulns + secrets) + pnpm audit
+#   secrets   — Gitleaks full-history secret detection (DISABLED)
 #   gitxray   — Supply-chain / repo-health OSINT scan → HTML report
+#
+# SecObserve import is disabled (so_upload: 'false') — scanners run locally
+# and results are saved as artifacts only. Enable upload by setting
+# SO_API_BASE_URL / SO_API_TOKEN / SO_PRODUCT_NAME as repo secrets and
+# flipping so_upload to 'true' in each step.
 #
 # NOTE: PQBench (Comcast/CARAF) is a PQC benchmarking methodology framework,
 # not a runnable scanner. Its evaluation metrics are applied to the existing
 # Argon2id benchmark at packages/core/scripts/bench-argon2id.mjs.
-#
-# Required secrets (all optional — scans continue on rate-limit / missing credential):
-#   GITHUB_TOKEN  — automatically provided by Actions; used by gitxray + secrover
-#   GITLEAKS_LICENSE — only required for private org repos; omit for public repos
 
 on:
   schedule:
@@ -25,7 +25,6 @@ on:
       - 'packages/**'
       - 'packages/extension/manifest.json'
       - '.github/workflows/security.yml'
-      - '.github/secrover.config.yaml'
 
 permissions:
   contents: read
@@ -33,7 +32,7 @@ permissions:
 jobs:
   # ── 1. SAST ────────────────────────────────────────────────────────────────
   sast:
-    name: SAST (semgrep)
+    name: SAST (semgrep + eslint)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
@@ -52,29 +51,38 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: actions/setup-python@v5
+      - name: Semgrep (security-audit + OWASP Top 10)
+        uses: SecObserve/secobserve_actions_templates/actions/SAST/semgrep@main
         with:
-          python-version: '3.12'
-
-      - name: Install semgrep
-        run: pip install semgrep
-
-      - name: Scan with semgrep
-        run: |
-          semgrep scan \
-            --config=p/security-audit \
-            --config=p/owasp-top-ten \
-            --json \
-            --output semgrep-report.json \
-            packages/
+          target: 'packages'
+          report_name: 'semgrep-report.json'
+          configuration: 'p/security-audit p/owasp-top-ten'
+          so_upload: 'false'
+          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
+          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
+          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
         continue-on-error: true
 
-      - name: Upload SAST report
+      - name: ESLint
+        uses: SecObserve/secobserve_actions_templates/actions/SAST/eslint@main
+        with:
+          run_directory: '.'
+          target: 'packages'
+          report_name: 'eslint-report.sarif'
+          so_upload: 'false'
+          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
+          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
+          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+        continue-on-error: true
+
+      - name: Upload SAST reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sast-semgrep
-          path: semgrep-report.json
+          name: sast-reports
+          path: |
+            semgrep-report.json
+            eslint-report.sarif
           retention-days: 30
 
   # ── 2. SCA ─────────────────────────────────────────────────────────────────
@@ -103,14 +111,15 @@ jobs:
         continue-on-error: true
 
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: SecObserve/secobserve_actions_templates/actions/SCA/trivy_filesystem@main
         with:
-          scan-type: 'fs'
-          scanners: 'vuln,secret'
-          format: 'template'
-          template: '@contrib/html.tpl'
-          output: 'trivy-report.html'
-          exit-code: '0'
+          target: '.'
+          report_name: 'trivy-report.json'
+          so_upload: 'false'
+          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
+          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
+          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+        continue-on-error: true
 
       - name: Upload SCA reports
         uses: actions/upload-artifact@v4
@@ -119,7 +128,7 @@ jobs:
           name: sca-reports
           path: |
             pnpm-audit.json
-            trivy-report.html
+            trivy-report.json
           retention-days: 30
 
   # ── 3. Secret detection ────────────────────────────────────────────────────
@@ -135,10 +144,14 @@ jobs:
         with:
           fetch-depth: 0 # full history required for git-log scanning
 
-      - name: Gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Gitleaks
+        uses: SecObserve/secobserve_actions_templates/actions/secrets/gitleaks@main
+        with:
+          report_name: 'gitleaks.sarif'
+          so_upload: 'false'
+          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
+          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
+          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
         continue-on-error: true
 
       - name: Upload Gitleaks report
@@ -146,47 +159,10 @@ jobs:
         if: always()
         with:
           name: secrets-gitleaks
-          # gitleaks-action writes results.sarif to the workspace root by default
-          path: results.sarif
+          path: gitleaks.sarif
           retention-days: 30
 
-  # ── 4. Secrover ────────────────────────────────────────────────────────────
-  secrover:
-    name: Secrover security audit
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    continue-on-error: true
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Pull Secrover image
-        run: docker pull secrover/secrover
-
-      - name: Run Secrover
-        run: |
-          mkdir -p secrover-output
-          # GITHUB_TOKEN is not passed for clone auth: the repo is public so
-          # anonymous HTTPS cloning works. Passing the token as-is causes git
-          # to treat it as the username and then prompt for a password, which
-          # fails in a no-TTY container environment.
-          docker run --rm \
-            -v "${{ github.workspace }}/.github/secrover.config.yaml:/config.yaml:ro" \
-            -v "${{ github.workspace }}/secrover-output:/output" \
-            secrover/secrover
-        continue-on-error: true
-
-      - name: Upload Secrover HTML report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: secrover-report
-          path: secrover-output/
-          retention-days: 30
-
-  # ── 5. Gitxray ─────────────────────────────────────────────────────────────
+  # ── 4. Gitxray ─────────────────────────────────────────────────────────────
   gitxray:
     name: Supply-chain scan (gitxray)
     runs-on: ubuntu-latest
