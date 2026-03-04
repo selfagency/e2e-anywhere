@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateKeypair as ed448Keypair, sign, verify } from '$core/crypto/ed448.js';
 import {
+  DH_P,
   DH_PUBLIC_KEY_BYTES,
   computeSharedSecret,
   deserializePublicKey,
@@ -125,12 +126,13 @@ describe('dh3072 properties', () => {
     }
   });
 
-  it('validatePublicKey rejects boundary values: 0, 1, p, p-1', () => {
-    // 0n and 1n are always below the valid range [2, p-2].
-    // We test other boundary values by checking that generated keys always
-    // pass — and that known-bad values (0, 1) are rejected.
+  it('validatePublicKey rejects boundary values: 0, 1, p-1, p', () => {
+    // Values below the valid range [2, p-2] must be rejected.
     expect(() => validatePublicKey(0n)).toThrow(RangeError);
     expect(() => validatePublicKey(1n)).toThrow(RangeError);
+    // Values at or above p-1 must also be rejected.
+    expect(() => validatePublicKey(DH_P - 1n)).toThrow(RangeError);
+    expect(() => validatePublicKey(DH_P)).toThrow(RangeError);
   });
 });
 
