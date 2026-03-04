@@ -5,6 +5,9 @@
   "version": "0.0.0",
   "minimum_chrome_version": "112",
   "permissions": ["storage"],
+  "action": {
+    "default_popup": "src/ui/popup/index.html"
+  },
   "host_permissions": [
     "https://bsky.app/*",
     "https://*/conversations*",
@@ -14,7 +17,8 @@
     "https://*/api/v2/instance*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -25,7 +29,7 @@
         "https://*/timelines/direct*",
         "https://*/web/direct*"
       ],
-      "js": ["content-script.js"],
+      "js": ["src/content/content-script.ts"],
       "run_at": "document_idle"
     }
   ]
