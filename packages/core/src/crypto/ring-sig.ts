@@ -155,6 +155,39 @@ function randomScalar(): { scalar: bigint; bytes: Uint8Array } {
 }
 
 // ---------------------------------------------------------------------------
+// Internal: ring entry validation
+// ---------------------------------------------------------------------------
+
+/** Size of a compressed Ed448 point in bytes. */
+const POINT_BYTES = 57;
+
+/**
+ * Validate a single ring public-key entry.
+ *
+ * Checks:
+ *   1. Byte length is exactly POINT_BYTES (57).
+ *   2. The bytes represent a valid, canonical Ed448 point (via Point.fromBytes).
+ *
+ * Throws a `RangeError` with a consistent message on any failure so that
+ * callers receive a predictable error type rather than internal curve-library
+ * exceptions when ring keys are attacker-controlled.
+ *
+ * @param entry  The raw public-key bytes to validate.
+ * @param label  A short human-readable label used in the error message (e.g. "ring[0]").
+ * @throws {RangeError} if the entry is not a valid 57-byte canonical Ed448 point.
+ */
+function validateRingEntry(entry: Uint8Array, label: string): void {
+  if (entry.byteLength !== POINT_BYTES) {
+    throw new RangeError(`rsig: ${label} must be ${POINT_BYTES} bytes, got ${entry.byteLength}`);
+  }
+  try {
+    ed448.Point.fromBytes(entry);
+  } catch {
+    throw new RangeError(`rsig: ${label} is not a valid canonical Ed448 point`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Internal: determine signer's ring index
 // ---------------------------------------------------------------------------
 
@@ -187,16 +220,24 @@ function findSignerIndex(pk: Uint8Array, ring: readonly [Uint8Array, Uint8Array,
  * @param m    Arbitrary-length message bytes.
  * @returns    342-byte RING-SIG structure: c1||r1||c2||r2||c3||r3.
  *
+ * @throws {RangeError} if any ring entry is not a valid 57-byte canonical Ed448 point.
  * @throws {RangeError} if sk's public key is not present in ring.
  */
 export function rsig(sk: Uint8Array, ring: readonly [Uint8Array, Uint8Array, Uint8Array], m: Uint8Array): Uint8Array {
+  // Validate every ring entry before any curve operations.
+  // Ring public keys may be attacker-controlled; early validation ensures
+  // consistent RangeError instead of leaking internal curve-library exceptions.
+  validateRingEntry(ring[0]!, 'ring[0]');
+  validateRingEntry(ring[1]!, 'ring[1]');
+  validateRingEntry(ring[2]!, 'ring[2]');
+
   // Derive signer's public key and scalar a_i
   const { pointBytes: signerPk, scalar: a_i } = ed448.utils.getExtendedPublicKey(sk);
 
   // Find the signer's position in the ring
   const idx = findSignerIndex(signerPk, ring);
 
-  // Decompress the other two ring members
+  // Decompress the ring members (safe: already validated above)
   const A = [
     ed448.Point.fromBytes(ring[0]!),
     ed448.Point.fromBytes(ring[1]!),
