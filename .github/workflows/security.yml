@@ -1,19 +1,16 @@
 name: Security
 
 # Runs scans in parallel:
-#   sast      — SecObserve: Semgrep (security-audit + owasp) + ESLint + Checkov
-#   sca       — SecObserve: Trivy filesystem + Grype + pnpm audit
-#   dast      — SecObserve: CryptoLyzer + ZAP baseline (requires DAST_TARGET_URL var)
+#   sast      — Semgrep (security-audit + owasp) + ESLint + Checkov
+#   sca       — Trivy filesystem (JSON) + Grype + pnpm audit
+#   dast      — CryptoLyzer + ZAP baseline (requires DAST_TARGET_URL var)
 #   secrets   — Gitleaks full-history secret detection (DISABLED)
 #   gitxray   — Supply-chain / repo-health OSINT scan → HTML report
 #
-# SecObserve import is disabled (so_upload: 'false') — scanners run locally
-# and results are saved as artifacts only. Enable upload by setting
-# SO_API_BASE_URL / SO_API_TOKEN / SO_PRODUCT_NAME as repo secrets and
-# flipping so_upload to 'true' in each step.
-#
 # DAST scans require a live deployment URL. Set a DAST_TARGET_URL repository
 # variable (e.g. https://staging.example.com) to enable the dast job.
+# CryptoLyzer needs a bare hostname; set DAST_TARGET_HOST if that differs
+# from the URL host (e.g. staging.example.com vs https://staging.example.com).
 #
 # NOTE: PQBench (Comcast/CARAF) is a PQC benchmarking methodology framework,
 # not a runnable scanner. Its evaluation metrics are applied to the existing
@@ -53,41 +50,40 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - run: pnpm install --frozen-lockfile
 
+      - name: Install Python scanners
+        run: pip install semgrep checkov
+
       - name: Semgrep (security-audit + OWASP Top 10)
-        uses: SecObserve/secobserve_actions_templates/actions/SAST/semgrep@main
-        with:
-          target: 'packages'
-          report_name: 'semgrep-report.json'
-          configuration: 'p/security-audit p/owasp-top-ten'
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+        run: |
+          semgrep scan \
+            --config p/security-audit \
+            --config p/owasp-top-ten \
+            --json \
+            --output semgrep-report.json \
+            packages/
         continue-on-error: true
 
       - name: ESLint
-        uses: SecObserve/secobserve_actions_templates/actions/SAST/eslint@main
-        with:
-          run_directory: '.'
-          target: 'packages'
-          report_name: 'eslint-report.sarif'
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+        run: |
+          pnpm exec eslint \
+            --format json \
+            --output-file eslint-report.json \
+            'packages/**/*.ts'
         continue-on-error: true
 
       - name: Checkov (IaC + manifest hygiene)
-        uses: SecObserve/secobserve_actions_templates/actions/SAST/checkov@main
-        with:
-          target: '.'
-          report_name: 'checkov-report.sarif'
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+        run: |
+          checkov \
+            --directory . \
+            --output json \
+            --output-file-path . \
+            --quiet
         continue-on-error: true
 
       - name: Upload SAST reports
@@ -97,8 +93,8 @@ jobs:
           name: sast-reports
           path: |
             semgrep-report.json
-            eslint-report.sarif
-            checkov-report.sarif
+            eslint-report.json
+            results_*.json
           retention-days: 30
 
   # ── 2. SCA ─────────────────────────────────────────────────────────────────
@@ -127,26 +123,21 @@ jobs:
         continue-on-error: true
 
       - name: Trivy filesystem scan
-        uses: SecObserve/secobserve_actions_templates/actions/SCA/trivy_filesystem@main
+        uses: aquasecurity/trivy-action@0.24.0
         with:
-          target: '.'
-          report_name: 'trivy-report.json'
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+          scan-type: fs
+          scanners: vuln,secret
+          format: json
+          output: trivy-report.json
+          exit-code: '0'
         continue-on-error: true
 
       - name: Grype filesystem scan
-        uses: SecObserve/secobserve_actions_templates/actions/SCA/grype_image@main
+        uses: anchore/scan-action@v6
         with:
-          # grype accepts dir: prefix for local filesystem targets
-          target: 'dir:.'
-          report_name: 'grype-report.json'
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+          path: '.'
+          output-format: json
+          fail-build: false
         continue-on-error: true
 
       - name: Upload SCA reports
@@ -157,7 +148,7 @@ jobs:
           path: |
             pnpm-audit.json
             trivy-report.json
-            grype-report.json
+            results.json
           retention-days: 30
 
   # ── 3. DAST ────────────────────────────────────────────────────────────────
@@ -173,28 +164,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: CryptoLyzer (TLS/cipher analysis)
-        uses: SecObserve/secobserve_actions_templates/actions/DAST/cryptolyzer@main
+      - uses: actions/setup-python@v5
         with:
-          # CryptoLyzer expects a bare hostname, not a URL
-          target: ${{ vars.DAST_TARGET_HOST || vars.DAST_TARGET_URL }}
-          report_name: 'cryptolyzer-report.json'
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+          python-version: '3.12'
+
+      - name: Install CryptoLyzer
+        run: pip install cryptolyzer
+
+      - name: CryptoLyzer (TLS/cipher analysis)
+        # CryptoLyzer expects a bare hostname, not a URL.
+        # Set DAST_TARGET_HOST if it differs from the URL host.
+        run: |
+          cryptolyze tls all \
+            "${{ vars.DAST_TARGET_HOST || vars.DAST_TARGET_URL }}" \
+            --output-format json \
+            > cryptolyzer-report.json
         continue-on-error: true
 
-      - name: ZAP baseline scan
-        uses: SecObserve/secobserve_actions_templates/actions/DAST/zap@main
+      - name: ZAP baseline scan (passive only)
+        uses: zaproxy/action-baseline@v0.14.0
         with:
           target: ${{ vars.DAST_TARGET_URL }}
-          report_name: 'zap-report.json'
-          # script defaults to zap-baseline.py — passive scan only, no active attack
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+          fail_action: false
+          artifact_name: zap-report
         continue-on-error: true
 
       - name: Upload DAST reports
@@ -202,9 +194,7 @@ jobs:
         if: always()
         with:
           name: dast-reports
-          path: |
-            cryptolyzer-report.json
-            zap-report.json
+          path: cryptolyzer-report.json
           retention-days: 30
 
   # ── 4. Secret detection ────────────────────────────────────────────────────
@@ -221,13 +211,9 @@ jobs:
           fetch-depth: 0 # full history required for git-log scanning
 
       - name: Gitleaks
-        uses: SecObserve/secobserve_actions_templates/actions/secrets/gitleaks@main
-        with:
-          report_name: 'gitleaks.sarif'
-          so_upload: 'false'
-          so_api_base_url: ${{ vars.SO_API_BASE_URL || '' }}
-          so_api_token: ${{ secrets.SO_API_TOKEN || '' }}
-          so_product_name: ${{ vars.SO_PRODUCT_NAME || 'e2e-anywhere' }}
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
       - name: Upload Gitleaks report
@@ -235,10 +221,10 @@ jobs:
         if: always()
         with:
           name: secrets-gitleaks
-          path: gitleaks.sarif
+          path: results.sarif
           retention-days: 30
 
-  # ── 4. Gitxray ─────────────────────────────────────────────────────────────
+  # ── 5. Gitxray ─────────────────────────────────────────────────────────────
   gitxray:
     name: Supply-chain scan (gitxray)
     runs-on: ubuntu-latest
