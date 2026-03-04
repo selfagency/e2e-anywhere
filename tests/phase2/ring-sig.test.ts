@@ -139,4 +139,67 @@ describe('rsig / rvrf (OTRv4 ring signature)', () => {
       expect(Buffer.from(s1).equals(Buffer.from(s2))).toBe(false);
     });
   });
+
+  describe('rsig ring entry validation', () => {
+    it('throws RangeError when ring[0] has wrong length', () => {
+      const kp1 = makeKeypair();
+      const kp2 = makeKeypair();
+      const kp3 = makeKeypair();
+      const m = new TextEncoder().encode('test');
+      const badKey = new Uint8Array(32); // wrong length (should be 57)
+      expect(() => rsig(kp1.sk, [badKey, kp2.pk, kp3.pk], m)).toThrow(RangeError);
+      expect(() => rsig(kp1.sk, [badKey, kp2.pk, kp3.pk], m)).toThrow('ring[0]');
+    });
+
+    it('throws RangeError when ring[1] has wrong length', () => {
+      const kp1 = makeKeypair();
+      const kp2 = makeKeypair();
+      const kp3 = makeKeypair();
+      const m = new TextEncoder().encode('test');
+      const badKey = new Uint8Array(56); // one byte short
+      expect(() => rsig(kp1.sk, [kp1.pk, badKey, kp3.pk], m)).toThrow(RangeError);
+      expect(() => rsig(kp1.sk, [kp1.pk, badKey, kp3.pk], m)).toThrow('ring[1]');
+    });
+
+    it('throws RangeError when ring[2] has wrong length', () => {
+      const kp1 = makeKeypair();
+      const kp2 = makeKeypair();
+      const kp3 = makeKeypair();
+      const m = new TextEncoder().encode('test');
+      const badKey = new Uint8Array(58); // one byte over
+      expect(() => rsig(kp1.sk, [kp1.pk, kp2.pk, badKey], m)).toThrow(RangeError);
+      expect(() => rsig(kp1.sk, [kp1.pk, kp2.pk, badKey], m)).toThrow('ring[2]');
+    });
+
+    it('throws RangeError when ring[0] is not a canonical Ed448 point', () => {
+      const kp1 = makeKeypair();
+      const kp2 = makeKeypair();
+      const kp3 = makeKeypair();
+      const m = new TextEncoder().encode('test');
+      // All-0xff bytes of correct length — not a valid point
+      const nonCanonical = new Uint8Array(57).fill(0xff);
+      expect(() => rsig(kp1.sk, [nonCanonical, kp2.pk, kp3.pk], m)).toThrow(RangeError);
+      expect(() => rsig(kp1.sk, [nonCanonical, kp2.pk, kp3.pk], m)).toThrow('ring[0]');
+    });
+
+    it('throws RangeError when ring[1] is not a canonical Ed448 point', () => {
+      const kp1 = makeKeypair();
+      const kp2 = makeKeypair();
+      const kp3 = makeKeypair();
+      const m = new TextEncoder().encode('test');
+      const nonCanonical = new Uint8Array(57).fill(0xff);
+      expect(() => rsig(kp1.sk, [kp1.pk, nonCanonical, kp3.pk], m)).toThrow(RangeError);
+      expect(() => rsig(kp1.sk, [kp1.pk, nonCanonical, kp3.pk], m)).toThrow('ring[1]');
+    });
+
+    it('throws RangeError when ring[2] is not a canonical Ed448 point', () => {
+      const kp1 = makeKeypair();
+      const kp2 = makeKeypair();
+      const kp3 = makeKeypair();
+      const m = new TextEncoder().encode('test');
+      const nonCanonical = new Uint8Array(57).fill(0xff);
+      expect(() => rsig(kp1.sk, [kp1.pk, kp2.pk, nonCanonical], m)).toThrow(RangeError);
+      expect(() => rsig(kp1.sk, [kp1.pk, kp2.pk, nonCanonical], m)).toThrow('ring[2]');
+    });
+  });
 });
