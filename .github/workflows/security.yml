@@ -1,7 +1,7 @@
 name: Security
 
 # Runs five scans in parallel:
-#   sast      — opengrep static analysis (OWASP Top 10 + security-audit rules)
+#   sast      — semgrep static analysis (OWASP Top 10 + security-audit rules)
 #   sca       — Trivy filesystem scan (vulns + secrets) + pnpm audit
 #   secrets   — Gitleaks full-history secret detection
 #   secrover  — Secrover all-in-one audit: deps (osv-scanner) + code (opengrep) → HTML report
@@ -33,7 +33,7 @@ permissions:
 jobs:
   # ── 1. SAST ────────────────────────────────────────────────────────────────
   sast:
-    name: SAST (opengrep)
+    name: SAST (semgrep)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
@@ -56,16 +56,16 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install opengrep
-        run: pip install opengrep
+      - name: Install semgrep
+        run: pip install semgrep
 
-      - name: Scan with opengrep
+      - name: Scan with semgrep
         run: |
-          opengrep scan \
+          semgrep scan \
             --config=p/security-audit \
             --config=p/owasp-top-ten \
             --json \
-            --output opengrep-report.json \
+            --output semgrep-report.json \
             packages/
         continue-on-error: true
 
@@ -73,8 +73,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sast-opengrep
-          path: opengrep-report.json
+          name: sast-semgrep
+          path: semgrep-report.json
           retention-days: 30
 
   # ── 2. SCA ─────────────────────────────────────────────────────────────────
@@ -168,8 +168,11 @@ jobs:
       - name: Run Secrover
         run: |
           mkdir -p secrover-output
+          # GITHUB_TOKEN is not passed for clone auth: the repo is public so
+          # anonymous HTTPS cloning works. Passing the token as-is causes git
+          # to treat it as the username and then prompt for a password, which
+          # fails in a no-TTY container environment.
           docker run --rm \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             -v "${{ github.workspace }}/.github/secrover.config.yaml:/config.yaml:ro" \
             -v "${{ github.workspace }}/secrover-output:/output" \
             secrover/secrover
@@ -208,8 +211,8 @@ jobs:
           gitxray \
             -r "https://github.com/${{ github.repository }}" \
             -f warning \
-            --outformat html \
-            --outfile gitxray-report.html \
+            -outformat html \
+            -out gitxray-report.html \
             --shush
         env:
           GH_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
