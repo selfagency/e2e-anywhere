@@ -17,19 +17,20 @@ export interface DHKeypair {
  */
 export declare function generateKeypair(): DHKeypair;
 /**
- * Validate that a public key is in the valid range [2, p − 2].
- * Throws RangeError on invalid input (prevents small-subgroup attacks).
+ * Validate that a public key is in the valid range [2, p − 2] AND
+ * in the prime-order subgroup (Legendre symbol check: pubKey^q mod p === 1).
+ * Throws RangeError on invalid input (prevents small-subgroup/subgroup-confinement attacks).
  */
 export declare function validatePublicKey(pubKey: bigint): void;
 /**
  * Boolean-returning group-membership check.
- * Returns true iff pubKey is in the valid DH group range [2, p − 2].
- * Equivalent to validatePublicKey but does not throw.
+ * Returns true iff pubKey is in [2, p − 2] AND in the prime-order subgroup
+ * (i.e., pubKey^q ≡ 1 mod p).  Prevents subgroup-confinement attacks.
  */
 export declare function validateDHGroupMembership(pubKey: bigint): boolean;
 /**
  * Compute DH shared secret.
- * Validates pubKey is in [2, p − 2] before computing.
+ * Validates pubKey is in [2, p − 2] and in the prime-order subgroup before computing.
  */
 export declare function computeSharedSecret(privateKey: bigint, pubKey: bigint): bigint;
 /**
@@ -38,5 +39,7 @@ export declare function computeSharedSecret(privateKey: bigint, pubKey: bigint):
 export declare function serializePublicKey(pubKey: bigint): Uint8Array;
 /**
  * Deserialize a 384-byte big-endian buffer to a public key bigint.
+ * Throws RangeError if the buffer is not exactly DH_PUBLIC_KEY_BYTES long,
+ * or if the resulting value is outside the valid group range [2, p − 2].
  */
 export declare function deserializePublicKey(bytes: Uint8Array): bigint;
