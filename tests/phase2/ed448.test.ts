@@ -1,4 +1,4 @@
-import { generateKeypair, sign, verify } from '$core/crypto/ed448.js';
+import { generateKeypair, sign, validatePoint, verify } from '$core/crypto/ed448.js';
 import { describe, expect, it } from 'vitest';
 
 describe('phase 2.7 ed448 primitives', () => {
@@ -56,5 +56,41 @@ describe('phase 2.7 ed448 primitives', () => {
     const message = new Uint8Array(0);
     const signature = sign(message, privateKey);
     expect(verify(signature, message, publicKey)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2.14 (prlx) — validatePoint: point validation hardening
+// ---------------------------------------------------------------------------
+
+describe('phase 2.14 validatePoint — Ed448 point validation hardening', () => {
+  it('returns true for a freshly generated (valid) public key', () => {
+    const { publicKey } = generateKeypair();
+    expect(validatePoint(publicKey)).toBe(true);
+  });
+
+  it('returns false for a 57-byte all-zeros buffer (encodes identity / low-order point)', () => {
+    expect(validatePoint(new Uint8Array(57))).toBe(false);
+  });
+
+  it('returns false for a buffer shorter than 57 bytes', () => {
+    expect(validatePoint(new Uint8Array(0))).toBe(false);
+    expect(validatePoint(new Uint8Array(56))).toBe(false);
+  });
+
+  it('returns false for a buffer longer than 57 bytes', () => {
+    expect(validatePoint(new Uint8Array(58))).toBe(false);
+    expect(validatePoint(new Uint8Array(114))).toBe(false);
+  });
+
+  it('returns false for a buffer of all 0xFF (structurally invalid point encoding)', () => {
+    expect(validatePoint(new Uint8Array(57).fill(0xff))).toBe(false);
+  });
+
+  it('returns true for multiple independently generated keypairs', () => {
+    for (let i = 0; i < 5; i++) {
+      const { publicKey } = generateKeypair();
+      expect(validatePoint(publicKey)).toBe(true);
+    }
   });
 });

@@ -75,5 +75,33 @@ These invariants are non-negotiable and release-blocking.
 
 ## Notes for future updates
 
-- The specific Argon2id implementation choice and CSP/wasm viability are finalized in Phase 1.5 and documented here as an addendum.
 - Where feasible, Argon2id execution is isolated in a short-lived Worker that is terminated immediately after derivation completes.
+
+## Argon2id library selection record (Phase 2, bean 4sdp)
+
+**Selected library:** `hash-wasm@4.12.0`
+
+**Rationale:**
+
+- MIT license — compatible with the project's licensing requirements
+- Ships TypeScript type declarations — no separate `@types/` package required
+- WASM-based Argon2id implementation — portable, no native add-on compilation
+- Actively maintained with a recent release history
+- No transitive production dependencies (only test/dev deps)
+
+**CSP requirements:** The extension manifest must include `wasm-unsafe-eval` in `content_security_policy.extension_pages`.  
+This is the minimum additional CSP surface required for WASM execution.  
+No `unsafe-eval` or `unsafe-inline` for scripts is required or permitted.
+
+**Baseline KDF parameters (v1):**
+
+| Parameter | Value | Notes                    |
+| --------- | ----- | ------------------------ |
+| `m`       | 65536 | 64 MiB memory cost       |
+| `t`       | 3     | 3 iterations             |
+| `p`       | 1     | 1 lane (single-threaded) |
+| `hashLen` | 32    | 256-bit derived key      |
+
+**Benchmark requirement:** Any change to these parameters requires timing evidence from `scripts/bench-argon2id.mjs` on a reference device (M1 MacBook), showing that the new parameters remain within the 1s budget defined in `docs/performance-budgets.md`.
+
+**CI smoke test:** A lightweight WASM init test (`hash-wasm` initializes without error) must pass in CI to detect environment-specific WASM load failures before deployment.

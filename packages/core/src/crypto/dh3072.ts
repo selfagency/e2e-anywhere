@@ -6,7 +6,7 @@
  */
 
 // RFC 3526 §2 — 3072-bit MODP Group 15 prime.
-const DH_P = BigInt(
+export const DH_P = BigInt(
   '0x' +
     'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1' +
     '29024E088A67CC74020BBEA63B139B22514A08798E3404DD' +
@@ -80,6 +80,15 @@ export function validatePublicKey(pubKey: bigint): void {
   if (pubKey < 2n || pubKey > DH_P - 2n) {
     throw new RangeError('public key out of valid range');
   }
+}
+
+/**
+ * Boolean-returning group-membership check.
+ * Returns true iff pubKey is in the valid DH group range [2, p − 2].
+ * Equivalent to validatePublicKey but does not throw.
+ */
+export function validateDHGroupMembership(pubKey: bigint): boolean {
+  return pubKey >= 2n && pubKey <= DH_P - 2n;
 }
 
 /**

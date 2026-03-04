@@ -1,8 +1,10 @@
 import {
+  DH_P,
   computeSharedSecret,
   deserializePublicKey,
   generateKeypair,
   serializePublicKey,
+  validateDHGroupMembership,
   validatePublicKey,
 } from '$core/crypto/dh3072.js';
 import { describe, expect, it } from 'vitest';
@@ -51,5 +53,36 @@ describe('phase 2.8 dh3072 primitives', () => {
     const serialized = serializePublicKey(publicKey);
     const deserialized = deserializePublicKey(serialized);
     expect(deserialized).toBe(publicKey);
+  });
+
+  describe('validateDHGroupMembership', () => {
+    it('accepts a freshly generated public key', () => {
+      const { publicKey } = generateKeypair();
+      expect(validateDHGroupMembership(publicKey)).toBe(true);
+    });
+
+    it('rejects 0', () => {
+      expect(validateDHGroupMembership(0n)).toBe(false);
+    });
+
+    it('rejects 1', () => {
+      expect(validateDHGroupMembership(1n)).toBe(false);
+    });
+
+    it('rejects p − 1 (upper boundary exclusive)', () => {
+      expect(validateDHGroupMembership(DH_P - 1n)).toBe(false);
+    });
+
+    it('rejects p (equals modulus)', () => {
+      expect(validateDHGroupMembership(DH_P)).toBe(false);
+    });
+
+    it('accepts p − 2 (valid upper boundary)', () => {
+      expect(validateDHGroupMembership(DH_P - 2n)).toBe(true);
+    });
+
+    it('accepts 2 (valid lower boundary)', () => {
+      expect(validateDHGroupMembership(2n)).toBe(true);
+    });
   });
 });
