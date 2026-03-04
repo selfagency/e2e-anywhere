@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "i18next": "25.8.14",
+    "web-vitals": "5.1.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",

@@ -1,0 +1,6 @@
+ruleDirs:
+- /Users/daniel/Developer/e2e-anywhere/rules
+testConfigs:
+- testDir: /Users/daniel/Developer/e2e-anywhere/rule-tests
+utilDirs:
+- /Users/daniel/Developer/e2e-anywhere/utils

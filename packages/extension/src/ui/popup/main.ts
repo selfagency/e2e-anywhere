@@ -1,5 +1,16 @@
-const app = document.getElementById('app');
+import { ensureI18n, t } from '../../localization/i18n';
+import { beginPerformanceCollection } from '../../performance/metrics';
 
-if (app) {
-  app.textContent = 'E2E Anywhere';
+async function bootstrapPopup(): Promise<void> {
+  await ensureI18n();
+  beginPerformanceCollection();
+
+  const app = document.getElementById('app');
+  if (!app) {
+    return;
+  }
+
+  app.textContent = t('popup.title');
 }
+
+void bootstrapPopup();
