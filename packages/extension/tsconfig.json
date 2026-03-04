@@ -4,12 +4,7 @@
     "composite": true,
     "noEmit": true,
     "rootDir": "src",
-    "types": [
-      "chrome",
-      "node"
-    ]
+    "types": ["chrome", "node"]
   },
-  "include": [
-    "src/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"]
 }

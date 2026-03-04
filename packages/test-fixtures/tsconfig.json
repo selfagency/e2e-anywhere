@@ -4,11 +4,7 @@
     "composite": true,
     "noEmit": true,
     "rootDir": "src",
-    "types": [
-      "node"
-    ]
+    "types": ["node"]
   },
-  "include": [
-    "src/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"]
 }

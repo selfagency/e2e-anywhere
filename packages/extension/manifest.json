@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "E2E Anywhere",
+  "description": "Security-first OTRv4 encryption extension for Bluesky and Mastodon direct messaging.",
+  "version": "0.0.0",
+  "minimum_chrome_version": "112",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://bsky.app/*",
+    "https://*/conversations*",
+    "https://*/timelines/direct*",
+    "https://*/web/direct*",
+    "https://*/api/v1/conversations*",
+    "https://*/api/v2/instance*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://bsky.app/messages*",
+        "https://bsky.app/messages/*",
+        "https://*/conversations*",
+        "https://*/timelines/direct*",
+        "https://*/web/direct*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

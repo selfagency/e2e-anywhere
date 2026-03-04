@@ -1,8 +1,6 @@
 {
   "include": [],
-  "exclude": [
-    "**/node_modules"
-  ],
+  "exclude": ["**/node_modules"],
   "references": [
     {
       "path": "./packages/core"
@@ -18,13 +16,8 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "types": [
-      "node"
-    ],
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
     "strict": true,
     "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,
