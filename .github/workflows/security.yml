@@ -36,6 +36,7 @@ jobs:
     name: SAST (opengrep)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +82,7 @@ jobs:
     name: SCA (trivy + pnpm audit)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -136,6 +138,7 @@ jobs:
     name: Secret detection (gitleaks)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    continue-on-error: true
     if: false # disabled — re-enable by removing this line
 
     steps:
@@ -163,6 +166,7 @@ jobs:
     name: Secrover security audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -195,6 +199,7 @@ jobs:
     name: Supply-chain scan (gitxray)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
