@@ -4,7 +4,14 @@
     "composite": true,
     "noEmit": true,
     "rootDir": "src",
-    "types": ["chrome", "node"]
+    "resolveJsonModule": true,
+    "types": [
+      "chrome",
+      "node"
+    ]
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "locales/**/*.json"
+  ]
 }

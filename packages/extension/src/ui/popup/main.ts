@@ -3,7 +3,7 @@ import { beginPerformanceCollection } from '../../performance/metrics';
 
 async function bootstrapPopup(): Promise<void> {
   await ensureI18n();
-  beginPerformanceCollection();
+  await beginPerformanceCollection();
 
   const app = document.getElementById('app');
   if (!app) {
@@ -13,4 +13,11 @@ async function bootstrapPopup(): Promise<void> {
   app.textContent = t('popup.title');
 }
 
-void bootstrapPopup();
+bootstrapPopup().catch((err: unknown) => {
+  // Render a safe fallback so the popup isn't left blank on init failure.
+  const app = document.getElementById('app');
+  if (app) {
+    app.textContent = 'E2E Anywhere';
+  }
+  console.error('[e2e-anywhere] popup bootstrap failed', err);
+});

