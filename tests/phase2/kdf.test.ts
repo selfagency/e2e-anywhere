@@ -43,8 +43,14 @@ describe('phase 2.9 kdf (HKDF-SHA-512)', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('clears the output buffer correctly (no reference aliasing)', () => {
-    const out = derive({ ikm, salt, length: 32 });
-    expect(out.every((b: number) => b === 0)).toBe(false);
+  it('returns independent buffers on repeated calls (no reference aliasing)', () => {
+    const info = new TextEncoder().encode('otrv4');
+    const a = derive({ ikm, salt, info, length: 32 });
+    const b = derive({ ikm, salt, info, length: 32 });
+    // Same inputs produce equal values
+    expect(a).toEqual(b);
+    // Mutating one buffer must not affect the other
+    a.fill(0);
+    expect(b.every((v: number) => v === 0)).toBe(false);
   });
 });
