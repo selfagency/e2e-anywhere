@@ -8,11 +8,11 @@
   "main": "index.js",
   "scripts": {
     "release:blockers": "node ./scripts/check-release-blockers.mjs",
-    "lint": "oxlint .",
-    "format:check": "oxfmt --check .",
-    "typecheck": "node ./scripts/typecheck.mjs",
-    "test": "vitest run --passWithNoTests",
-    "build": "node ./scripts/build.mjs",
+    "lint": "pnpm -r --if-present lint && oxlint .",
+    "format:check": "pnpm -r --if-present format:check && oxfmt --check .",
+    "typecheck": "pnpm exec tsc -b --pretty false",
+    "test": "pnpm -r --if-present test && vitest run --passWithNoTests",
+    "build": "pnpm -r --if-present build && node ./scripts/build.mjs",
     "audit": "pnpm audit --audit-level high"
   },
   "devDependencies": {
