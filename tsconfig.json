@@ -1,16 +1,30 @@
 {
-  "files": [],
+  "include": [],
+  "exclude": [
+    "**/node_modules"
+  ],
   "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/extension" },
-    { "path": "./packages/test-fixtures" }
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/extension"
+    },
+    {
+      "path": "./packages/test-fixtures"
+    }
   ],
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM"],
-    "types": ["node"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,
