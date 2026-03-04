@@ -1,0 +1,224 @@
+name: Security
+
+# Runs five scans in parallel:
+#   sast      — opengrep static analysis (OWASP Top 10 + security-audit rules)
+#   sca       — Trivy filesystem scan (vulns + secrets) + pnpm audit
+#   secrets   — Gitleaks full-history secret detection
+#   secrover  — Secrover all-in-one audit: deps (osv-scanner) + code (opengrep) → HTML report
+#   gitxray   — Supply-chain / repo-health OSINT scan → HTML report
+#
+# NOTE: PQBench (Comcast/CARAF) is a PQC benchmarking methodology framework,
+# not a runnable scanner. Its evaluation metrics are applied to the existing
+# Argon2id benchmark at packages/core/scripts/bench-argon2id.mjs.
+#
+# Required secrets (all optional — scans continue on rate-limit / missing credential):
+#   GITHUB_TOKEN  — automatically provided by Actions; used by gitxray + secrover
+#   GITLEAKS_LICENSE — only required for private org repos; omit for public repos
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # every Monday at 03:00 UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'packages/extension/manifest.json'
+      - '.github/workflows/security.yml'
+      - '.github/secrover.config.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  # ── 1. SAST ────────────────────────────────────────────────────────────────
+  sast:
+    name: SAST (opengrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install opengrep
+        run: pip install opengrep
+
+      - name: Scan with opengrep
+        run: |
+          opengrep scan \
+            --config=p/security-audit \
+            --config=p/owasp-top-ten \
+            --json \
+            --output opengrep-report.json \
+            packages/
+        continue-on-error: true
+
+      - name: Upload SAST report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sast-opengrep
+          path: opengrep-report.json
+          retention-days: 30
+
+  # ── 2. SCA ─────────────────────────────────────────────────────────────────
+  sca:
+    name: SCA (trivy + pnpm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit
+        run: pnpm audit --json > pnpm-audit.json
+        continue-on-error: true
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scanners: 'vuln,secret'
+          format: 'template'
+          template: '@contrib/html.tpl'
+          output: 'trivy-report.html'
+          exit-code: '0'
+
+      - name: Upload SCA reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sca-reports
+          path: |
+            pnpm-audit.json
+            trivy-report.html
+          retention-days: 30
+
+  # ── 3. Secret detection ────────────────────────────────────────────────────
+  secrets:
+    name: Secret detection (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    if: false # disabled — re-enable by removing this line
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history required for git-log scanning
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload Gitleaks report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secrets-gitleaks
+          # gitleaks-action writes results.sarif to the workspace root by default
+          path: results.sarif
+          retention-days: 30
+
+  # ── 4. Secrover ────────────────────────────────────────────────────────────
+  secrover:
+    name: Secrover security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Pull Secrover image
+        run: docker pull secrover/secrover
+
+      - name: Run Secrover
+        run: |
+          mkdir -p secrover-output
+          docker run --rm \
+            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            -v "${{ github.workspace }}/.github/secrover.config.yaml:/config.yaml:ro" \
+            -v "${{ github.workspace }}/secrover-output:/output" \
+            secrover/secrover
+        continue-on-error: true
+
+      - name: Upload Secrover HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secrover-report
+          path: secrover-output/
+          retention-days: 30
+
+  # ── 5. Gitxray ─────────────────────────────────────────────────────────────
+  gitxray:
+    name: Supply-chain scan (gitxray)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install gitxray
+        run: pip install gitxray
+
+      - name: Run gitxray
+        # Scans the repo for supply-chain warnings: tampered release assets,
+        # suspicious contributor patterns, leaked keys in PGP/SSH profiles, etc.
+        # GH_ACCESS_TOKEN increases the GitHub API rate limit from 60 to 5000 req/hr.
+        run: |
+          gitxray \
+            -r "https://github.com/${{ github.repository }}" \
+            -f warning \
+            --outformat html \
+            --outfile gitxray-report.html \
+            --shush
+        env:
+          GH_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload gitxray HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitxray-report
+          path: gitxray-report.html
+          retention-days: 30

@@ -61,6 +61,54 @@ Any changes to these areas require explicit security review:
 - Network requests or API calls
 - Permission requirements
 - Data retention or deletion flows
+- `manifest.json` (any change)
+- Message handler registration (`onMessage`, `onMessageExternal`, `onConnectExternal`)
+- `web_accessible_resources` entries
+- `external_connectable` configuration
+- Any use of `scripting.executeScript()` or `tabs.executeScript()`
+
+## Browser Extension Security Rules
+
+These rules are derived from OWASP Browser Extension Vulnerabilities and the GitHub Security Lab "Attacking Browser Extensions" research. Violations are release blockers.
+
+### Permissions
+
+- **Never request permissions speculatively.** Every permission in `manifest.json` must be required by an already-implemented feature. Request permissions dynamically at runtime when possible.
+- **`<all_urls>` and `*://*/*` are forbidden** in `host_permissions` unless no narrower scope is possible. Justify in a comment.
+- **`activeTab` requires documented justification.** It does not appear in the Chrome install prompt — document its use explicitly.
+
+### Manifest configuration
+
+- **Never add `external_connectable`.** If cross-extension messaging is ever required, add it with the strictest possible scope and document the decision in the threat model.
+- **All `web_accessible_resources` entries must use `use_dynamic_url: true`.** This prevents UUID-based fingerprinting and resource enumeration by malicious pages.
+- **Extension HTML pages that are web-accessible must not accept URL parameters to perform actions** (key export, signing, permitting anything).
+- **CSP must not contain `unsafe-eval` or `unsafe-inline` for scripts.** `wasm-unsafe-eval` is the sole permitted exception.
+
+### Message passing
+
+- **All message payloads are untrusted**, regardless of source. Validate the full structure and content of every incoming message before acting on it — including messages from the extension's own content scripts.
+- **Validate sender identity.** In `onMessage` handlers, check `sender.tab` and `sender.url` for privilege-sensitive operations. In `onMessageExternal` handlers, validate `sender.id` against an explicit allowlist.
+- **`onMessageExternal` and `onConnectExternal` must not be registered unless required.** If registered, the handler must immediately reject unlisted senders.
+- **Content scripts must check `event.origin` before relaying `window.postMessage` payloads** to the background script.
+
+### Code execution
+
+- **`eval()`, `Function()`, `setTimeout(string)`, `setInterval(string)` are forbidden** in all extension contexts. Use the `no-eval` / `no-implied-eval` ESLint rules.
+- **`scripting.executeScript()` must only use `files`, never `code` strings.** `tabs.executeScript()` (MV2 API) must not appear anywhere.
+- **No remote script loading.** Every script executed by the extension must originate from the extension package.
+
+### Content script rules
+
+- **Treat all page DOM data as attacker-controlled.** Data extracted from `document` and sent to the background must be re-validated before use in any privileged operation.
+- **No `innerHTML` for any page-derived content** — use `textContent` or DOM construction APIs. This is a separate invariant from the decrypted-content rule; it applies to all page data.
+
+### UXSS awareness
+
+XSS in the background script context is Universal XSS (UXSS): the attacker gains the ability to run code in any tab the extension has permission for. The path is:
+
+> attacker-controlled page → content script (unsanitized relay) → background handler (unsanitized input) → UXSS
+
+Every code review on the message-passing path must specifically ask: "if the content script sends attacker-controlled input here, can the background execute it as code?"
 
 ## Threat Model Awareness
 
@@ -72,6 +120,12 @@ Key threats you must consider:
 - Side-channel attacks (timing, DOM mutation patterns)
 - Supply chain attacks (compromised dependencies)
 - Browser extension store compromise
+- Universal XSS (UXSS) via background script compromise (categorically more severe than content-script XSS)
+- Privilege escalation via unsanitized or unauthenticated message passing
+- `external_connectable` misconfiguration exposing privileged handlers to arbitrary websites or extensions
+- `web_accessible_resources` iframe loading and clickjacking attacks on extension UI
+- Zero-permission malicious sibling extension driving `onMessageExternal` handlers
+- URL parameter injection in web-accessible extension pages
 
 ## Platform-Specific Security Notes
 
