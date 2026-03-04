@@ -69,12 +69,8 @@ jobs:
             packages/
         continue-on-error: true
 
-      - name: ESLint
-        run: |
-          pnpm exec eslint \
-            --format json \
-            --output-file eslint-report.json \
-            'packages/**/*.ts'
+      - name: Oxlint (with eslint-plugin-security)
+        run: pnpm exec oxlint --format json packages/ > oxlint-report.json
         continue-on-error: true
 
       - name: Checkov (IaC + manifest hygiene)
@@ -93,7 +89,7 @@ jobs:
           name: sast-reports
           path: |
             semgrep-report.json
-            eslint-report.json
+            oxlint-report.json
             results_*.json
           retention-days: 30
 
