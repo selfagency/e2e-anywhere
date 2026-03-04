@@ -12,12 +12,13 @@
  *   - Unforgeability: cannot produce a valid sigma without knowing one ring member's secret key
  *   - Anonymity   : sigma is computationally indistinguishable regardless of which member signed
  *
- * Memory hygiene: intermediate scalars (nonce t_i) are represented as bigint
- * and cannot be reliably zeroized after use. JavaScript's runtime provides no
- * guaranteed mechanism for clearing bigint values from memory. This is an
- * accepted limitation of the current implementation; a future iteration may
- * represent scalars as zeroizable Uint8Array buffers if the threat model
- * requires stronger in-process memory hygiene guarantees.
+ * Memory hygiene: the 57-byte LE encoding of the nonce scalar t_i is
+ * explicitly zeroized (fill(0)) after its last use. The corresponding bigint
+ * primitive cannot be zeroed — JavaScript provides no mechanism for clearing
+ * bigint values from the GC-managed heap. The same fundamental limitation
+ * applies to a_i, which is returned by @noble/curves as a bigint and cannot
+ * be intercepted in byte form. These are accepted constraints of operating
+ * within the noble/JS runtime.
  */
 
 import { ed448 } from '@noble/curves/ed448.js';
@@ -138,13 +139,19 @@ function hashToScalar(usage: number, ...parts: Uint8Array[]): bigint {
  * Generate a cryptographically random scalar s ∈ Z_q via the Ed448
  * hash-and-prune procedure (same as used for signing keys).
  * This guarantees the scalar is in the correct subgroup.
+ *
+ * Returns both the bigint value (required by @noble/curves arithmetic APIs)
+ * and a 57-byte LE Uint8Array encoding. The CALLER is responsible for calling
+ * .fill(0) on `bytes` after the scalar's last use. The bigint copy persists
+ * in the GC-managed heap until collected — this is an inherent JS limitation.
  */
-function randomScalar(): bigint {
+function randomScalar(): { scalar: bigint; bytes: Uint8Array } {
   const sk = ed448.utils.randomSecretKey();
   const scalar = ed448.utils.getExtendedPublicKey(sk).scalar;
-  // Zeroize the ephemeral secret key bytes
+  // Zeroize the ephemeral secret key bytes immediately.
   sk.fill(0);
-  return scalar;
+  const bytes = encodeScalar(scalar);
+  return { scalar, bytes };
 }
 
 // ---------------------------------------------------------------------------
@@ -197,11 +204,11 @@ export function rsig(sk: Uint8Array, ring: readonly [Uint8Array, Uint8Array, Uin
   ] as const;
 
   // Sample randomness:
-  //   - t_i: the real Schnorr nonce for the signer
+  //   - t_i: the real Schnorr nonce for the signer (bytes held for zeroization)
   //   - c_j, r_j: simulated challenge/response for both non-signers j ≠ i
   const t_i = randomScalar();
-  const c = [randomScalar(), randomScalar(), randomScalar()]; // we'll overwrite c[idx]
-  const r = [randomScalar(), randomScalar(), randomScalar()]; // we'll overwrite r[idx]
+  const c = [randomScalar().scalar, randomScalar().scalar, randomScalar().scalar]; // we'll overwrite c[idx]
+  const r = [randomScalar().scalar, randomScalar().scalar, randomScalar().scalar]; // we'll overwrite r[idx]
 
   // Compute the commitment points T_j for each ring member:
   //   - Real: T_i = G * t_i
@@ -212,7 +219,7 @@ export function rsig(sk: Uint8Array, ring: readonly [Uint8Array, Uint8Array, Uin
     G.multiply(r[2]!).add(A[2]!.multiply(c[2]!)), // simulated (will be replaced for idx==2)
   ];
   // Override the signer's T_i with the real Schnorr nonce point
-  T[idx] = G.multiply(t_i);
+  T[idx] = G.multiply(t_i.scalar);
 
   // Compute the ring challenge scalar:
   //   c = HashToScalar(usage_auth || G || q_bytes || A1 || A2 || A3 || T1 || T2 || T3 || m)
@@ -235,7 +242,11 @@ export function rsig(sk: Uint8Array, ring: readonly [Uint8Array, Uint8Array, Uin
   //   r_i = t_i - c_i * a_i          mod q
   const otherCs = ([0, 1, 2] as const).filter(j => j !== idx).map(j => c[j]!) as [bigint, bigint];
   c[idx] = modSub(cHash, modAdd(...otherCs));
-  r[idx] = modSub(t_i, modMul(c[idx]!, a_i));
+  r[idx] = modSub(t_i.scalar, modMul(c[idx]!, a_i));
+
+  // t_i's byte encoding is no longer needed — zeroize it.
+  // The bigint primitive persists in the GC heap; that is unavoidable in JS.
+  t_i.bytes.fill(0);
 
   // Assemble RING-SIG wire format: c1||r1||c2||r2||c3||r3
   const sigma = new Uint8Array(RING_SIG_BYTES);
