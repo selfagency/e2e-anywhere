@@ -39,7 +39,7 @@ describe('phase 2.7 ed448 primitives', () => {
     const message = new TextEncoder().encode('original');
     const signature = sign(message, privateKey);
     const badSig = new Uint8Array(signature);
-    badSig[0] ^= 0xff;
+    badSig[0]! ^= 0xff;
     expect(verify(badSig, message, publicKey)).toBe(false);
   });
 
