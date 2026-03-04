@@ -7,11 +7,12 @@
   "author": "",
   "main": "index.js",
   "scripts": {
+    "release:blockers": "node ./scripts/check-release-blockers.mjs",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ./scripts/typecheck.mjs",
     "test": "vitest run --passWithNoTests",
-    "build": "vite build",
+    "build": "node ./scripts/build.mjs",
     "audit": "pnpm audit --audit-level high"
   },
   "devDependencies": {

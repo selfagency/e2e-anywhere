@@ -33,11 +33,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Release blocker docs present
-        run: |
-          test -f docs/security/threat-model.md
-          test -f docs/security/security-invariants.md
-          test -f docs/privacy/data-classification.md
-          test -f docs/privacy/privacy-policy-draft.md
+        run: pnpm run release:blockers
 
       - name: Lint (Oxlint)
         run: pnpm lint
@@ -55,4 +51,4 @@ jobs:
         run: pnpm build
 
       - name: Dependency audit (high/critical)
-        run: pnpm audit
+        run: pnpm run audit
