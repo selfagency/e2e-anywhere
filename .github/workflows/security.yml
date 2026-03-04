@@ -3,7 +3,7 @@ name: Security
 # Runs scans in parallel:
 #   sast      — Semgrep (security-audit + owasp) + ESLint + Checkov
 #   sca       — Trivy filesystem (JSON) + Grype + pnpm audit
-#   dast      — CryptoLyzer + ZAP baseline (requires DAST_TARGET_URL var)
+#   cryptolyzer — TLS/cipher analysis (requires DAST_TARGET_HOST var)
 #   secrets   — Gitleaks full-history secret detection (DISABLED)
 #   gitxray   — Supply-chain / repo-health OSINT scan → HTML report
 #
@@ -147,15 +147,14 @@ jobs:
             results.json
           retention-days: 30
 
-  # ── 3. DAST ────────────────────────────────────────────────────────────────
-  dast:
-    name: DAST (cryptolyzer + zap)
+  # ── 3. CryptoLyzer ────────────────────────────────────────────────────────
+  cryptolyzer:
+    name: TLS analysis (cryptolyzer)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     continue-on-error: true
-    # Requires a live deployment. Set DAST_TARGET_URL as a repository variable
-    # (e.g. https://staging.example.com) to enable this job.
-    if: ${{ vars.DAST_TARGET_URL != '' }}
+    # Set DAST_TARGET_HOST (bare hostname, e.g. example.com) to enable this job.
+    if: ${{ vars.DAST_TARGET_HOST != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -168,28 +167,18 @@ jobs:
         run: pip install cryptolyzer
 
       - name: CryptoLyzer (TLS/cipher analysis)
-        # CryptoLyzer expects a bare hostname, not a URL.
-        # Set DAST_TARGET_HOST if it differs from the URL host.
         run: |
           cryptolyze tls all \
-            "${{ vars.DAST_TARGET_HOST || vars.DAST_TARGET_URL }}" \
+            "${{ vars.DAST_TARGET_HOST }}" \
             --output-format json \
             > cryptolyzer-report.json
         continue-on-error: true
 
-      - name: ZAP baseline scan (passive only)
-        uses: zaproxy/action-baseline@v0.14.0
-        with:
-          target: ${{ vars.DAST_TARGET_URL }}
-          fail_action: false
-          artifact_name: zap-report
-        continue-on-error: true
-
-      - name: Upload DAST reports
+      - name: Upload CryptoLyzer report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dast-reports
+          name: cryptolyzer-report
           path: cryptolyzer-report.json
           retention-days: 30
 
