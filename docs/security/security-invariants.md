@@ -43,6 +43,7 @@ These invariants are non-negotiable and release-blocking.
 2. Time/space limits must be enforceable and test-covered for adversarial inputs.
 3. Best-effort in-memory zeroization is required for sensitive byte arrays where possible.
 4. Mnemonic display teardown must clear component state and remove rendered phrase content before component disposal.
+5. **Known limitation — bigint scalars in ring-sig.ts are not zeroizable.** JavaScript provides no mechanism to zero `bigint` values in memory. The intermediate nonce scalars `t_i` in `ring-sig.ts` are `bigint` and will persist in the GC-managed heap until collected. This is accepted for the current implementation. A future iteration may represent all scalars as `Uint8Array` to enable `Uint8Array.prototype.fill(0)` hygiene if the threat model requires stronger in-process guarantees.
 
 ## Storage invariants
 

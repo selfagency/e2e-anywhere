@@ -12,7 +12,12 @@
  *   - Unforgeability: cannot produce a valid sigma without knowing one ring member's secret key
  *   - Anonymity   : sigma is computationally indistinguishable regardless of which member signed
  *
- * Memory hygiene: intermediate scalars (nonce t_i) are cleared after use.
+ * Memory hygiene: intermediate scalars (nonce t_i) are represented as bigint
+ * and cannot be reliably zeroized after use. JavaScript's runtime provides no
+ * guaranteed mechanism for clearing bigint values from memory. This is an
+ * accepted limitation of the current implementation; a future iteration may
+ * represent scalars as zeroizable Uint8Array buffers if the threat model
+ * requires stronger in-process memory hygiene guarantees.
  */
 
 import { ed448 } from '@noble/curves/ed448.js';
