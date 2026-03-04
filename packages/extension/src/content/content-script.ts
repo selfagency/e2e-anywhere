@@ -1,1 +1,1 @@
-export {};
+void chrome.runtime?.id;
