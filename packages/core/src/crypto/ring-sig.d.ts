@@ -32,6 +32,7 @@ export declare const RING_SIG_BYTES: number;
  * @param m    Arbitrary-length message bytes.
  * @returns    342-byte RING-SIG structure: c1||r1||c2||r2||c3||r3.
  *
+ * @throws {RangeError} if any ring entry is not a valid 57-byte canonical Ed448 point.
  * @throws {RangeError} if sk's public key is not present in ring.
  */
 export declare function rsig(
