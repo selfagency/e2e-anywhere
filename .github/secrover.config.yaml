@@ -1,0 +1,7 @@
+project:
+  name: e2e-anywhere
+
+repos:
+  - url: https://github.com/selfagency/e2e-anywhere
+    description: 'OTRv4 end-to-end encryption browser extension for Bluesky and Mastodon'
+    branch: 'main'
