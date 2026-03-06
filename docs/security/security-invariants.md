@@ -21,7 +21,12 @@ These invariants are non-negotiable and release-blocking.
    - If conforming Argon2id is unavailable, fail closed with user-visible hard error.
 2. Forging key retention defaults to discard.
    - Retention is explicit opt-in with clear risk warning.
-3. Key operations must follow protocol-specified validation requirements.
+   - The forging secret key MUST be deleted (zeroized) immediately after the Client Profile is signed.
+3. Client Profile lifecycle invariants.
+   - The expiration MUST NOT exceed 7 days (604800 seconds) from the time of signing.
+   - Profile validation MUST include a strict expiration check against the current system time.
+   - Both the Identity Key (H) and the Forging Key MUST be validated as prime-order group members (Ed448 `validatePoint`) during profile creation and verification.
+4. Key operations must follow protocol-specified validation requirements.
    - Ed448 validation must reject identity and small-order points.
    - Reject malformed points/keys/messages before state transition.
 
