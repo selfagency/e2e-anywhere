@@ -13,7 +13,7 @@ import {
 } from '$core/otr/wire.js';
 
 describe('phase 3.14 — OTRv4 Header Serialization', () => {
-  it('serializes a standard header correctly (1 byte type, 4 bytes tag)', () => {
+  it('serializes a standard header correctly (4 bytes type, 4 bytes tag)', () => {
     const instanceTag = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
     const header = {
       protocolVersion: PROTOCOL_VERSION,
