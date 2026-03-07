@@ -113,8 +113,9 @@ export function deserializeDataMessage(bytes: Uint8Array): {
   const header = deserializeHeader(bytes.slice(0, 6));
   offset += 6;
 
-  const flags = bytes[offset];
-  if (flags === undefined) throw new Error('Truncated message header (flags)');
+  const flagsValue = bytes[offset];
+  if (flagsValue === undefined) throw new Error('Truncated message header (flags)');
+  const flags = flagsValue;
   offset += 1;
 
   const ratchetKey = bytes.slice(offset, offset + 57);
