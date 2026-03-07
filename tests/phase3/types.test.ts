@@ -58,7 +58,7 @@ describe('phase 3.14 — OTRv4 Data Message Serialization', () => {
       flags: 0x00,
       ratchetKey: new Uint8Array(57).fill(0xaa),
       identifier: new Uint8Array(8).fill(0xbb),
-      nonce: new Uint8Array(12).fill(0x00), // always 0 per spec
+      nonce: new Uint8Array(12).fill(0x00), // 12-byte nonce (validated for length only)
       ciphertext,
       mac,
     };
@@ -170,6 +170,58 @@ describe('phase 3.14 — OTRv4 wire-format rejection of malformed inputs', () =>
     expect(() => deserializeHeader(raw)).toThrow(/Invalid message type/);
   });
 
+  it('serializeDataMessage throws when messageType is not DATA', () => {
+    expect(() =>
+      serializeDataMessage({
+        header: {
+          protocolVersion: PROTOCOL_VERSION,
+          messageType: OTRv4MessageType.DAKE_IDENTITY, // wrong type
+          instanceTag: new Uint8Array(4),
+        },
+        flags: 0,
+        ratchetKey: new Uint8Array(57),
+        identifier: new Uint8Array(8),
+        nonce: new Uint8Array(12),
+        ciphertext: new Uint8Array(0),
+        mac: new Uint8Array(64),
+      }),
+    ).toThrow(/requires header.messageType=DATA/);
+  });
+
+  it('serializeDataMessage throws for flags out of uint8 range', () => {
+    expect(() =>
+      serializeDataMessage({
+        header: {
+          protocolVersion: PROTOCOL_VERSION,
+          messageType: OTRv4MessageType.DATA,
+          instanceTag: new Uint8Array(4),
+        },
+        flags: 256, // out of uint8 range
+        ratchetKey: new Uint8Array(57),
+        identifier: new Uint8Array(8),
+        nonce: new Uint8Array(12),
+        ciphertext: new Uint8Array(0),
+        mac: new Uint8Array(64),
+      }),
+    ).toThrow(/Invalid flags value/);
+  });
+
+  it('deserializeDataMessage throws for non-DATA message type header', () => {
+    // Build a valid header with DAKE_IDENTITY type and DATA message body
+    const header = {
+      protocolVersion: PROTOCOL_VERSION,
+      messageType: OTRv4MessageType.DAKE_IDENTITY,
+      instanceTag: new Uint8Array(4),
+    };
+    const headerBytes = serializeHeader(header);
+    // Build a minimal DATA-shaped body (flags + ratchetKey + identifier + nonce + ctLen + mac)
+    const body = new Uint8Array(1 + 57 + 8 + 12 + 4 + 64);
+    const full = new Uint8Array(headerBytes.byteLength + body.byteLength);
+    full.set(headerBytes);
+    full.set(body, headerBytes.byteLength);
+    expect(() => deserializeDataMessage(full)).toThrow(/Invalid message type for data message/);
+  });
+
   it('serializeDataMessage throws for wrong ratchetKey length', () => {
     expect(() =>
       serializeDataMessage({
@@ -256,6 +308,20 @@ describe('phase 3.14 — OTRv4 wire-format rejection of malformed inputs', () =>
     const withTrailing = new Uint8Array(serialized.byteLength + 2);
     withTrailing.set(serialized);
     expect(() => deserializeDataMessage(withTrailing)).toThrow(/Trailing bytes in data message/);
+  });
+
+  it('deserializeClientProfile throws for trailing bytes', () => {
+    const validProfile = {
+      instanceTag: new Uint8Array(4),
+      publicKey: new Uint8Array(57),
+      forgingKey: new Uint8Array(57),
+      expiration: 0n,
+      signature: new Uint8Array(114),
+    };
+    const serialized = serializeClientProfile(validProfile);
+    const withTrailing = new Uint8Array(serialized.byteLength + 1);
+    withTrailing.set(serialized);
+    expect(() => deserializeClientProfile(withTrailing)).toThrow(/exactly 240 bytes/);
   });
 
   it('serializeClientProfile throws for invalid instanceTag length', () => {
