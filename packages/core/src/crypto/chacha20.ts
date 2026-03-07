@@ -21,6 +21,8 @@ export interface EncryptParams {
   nonce: Uint8Array;
   /** Plaintext to encrypt. */
   plaintext: Uint8Array;
+  /** Optional associated data for authentication. */
+  ad?: Uint8Array;
 }
 
 export interface DecryptParams {
@@ -30,6 +32,8 @@ export interface DecryptParams {
   nonce: Uint8Array;
   /** Ciphertext with appended 16-byte Poly1305 authentication tag. */
   ciphertext: Uint8Array;
+  /** Optional associated data for verification. */
+  ad?: Uint8Array;
 }
 
 /**
@@ -37,8 +41,8 @@ export interface DecryptParams {
  *
  * @returns `ciphertext || tag` — byteLength is `plaintext.byteLength + TAG_LEN`.
  */
-export function encrypt({ key, nonce, plaintext }: EncryptParams): Uint8Array {
-  return chacha20poly1305(key, nonce).encrypt(plaintext);
+export function encrypt({ key, nonce, plaintext, ad }: EncryptParams): Uint8Array {
+  return chacha20poly1305(key, nonce, ad).encrypt(plaintext);
 }
 
 /**
@@ -47,6 +51,6 @@ export function encrypt({ key, nonce, plaintext }: EncryptParams): Uint8Array {
  * @throws Error('invalid tag') if authentication fails.
  * @returns Decrypted plaintext.
  */
-export function decrypt({ key, nonce, ciphertext }: DecryptParams): Uint8Array {
-  return chacha20poly1305(key, nonce).decrypt(ciphertext);
+export function decrypt({ key, nonce, ciphertext, ad }: DecryptParams): Uint8Array {
+  return chacha20poly1305(key, nonce, ad).decrypt(ciphertext);
 }

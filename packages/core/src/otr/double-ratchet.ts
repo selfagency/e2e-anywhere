@@ -5,9 +5,9 @@
  * ratchets for end-to-end encrypted messaging.
  */
 
+import { decrypt as nobleDecrypt, encrypt as nobleEncrypt } from '$core/crypto/chacha20.js';
 import { diffieHellman, generateKeypair } from '$core/crypto/ed448.js';
-import { kdf, hmac } from '$core/crypto/kdf.js';
-import { encrypt as nobleEncrypt, decrypt as nobleDecrypt } from '$core/crypto/chacha20.js';
+import { kdf } from '$core/crypto/kdf.js';
 import { OTRv4MessageType, type DataMessage } from '$core/types.js';
 
 /** Ratchet usage IDs from OTRv4 spec (Section 3.17.1) */
@@ -204,7 +204,7 @@ export class OTRv4DoubleRatchet {
 
     // console.log('Encrypt AD:', Buffer.from(ad).toString('hex'));
 
-    const { ciphertext, dh, n, pn, macKey } = encryptMessage(this.state, plaintext, ad);
+    const { ciphertext, dh, n, pn, macKey: _macKey } = encryptMessage(this.state, plaintext, ad);
 
     // console.log('Class Encrypt Header DH (hex):', Buffer.from(dh).toString('hex'));
     // console.log('Class Encrypt Ciphertext (last 16):', Buffer.from(ciphertext.slice(-16)).toString('hex'));
@@ -265,7 +265,7 @@ export class OTRv4DoubleRatchet {
     // console.log('Class Decrypt Header DH (hex):', Buffer.from(header.dh).toString('hex'));
     // console.log('Class Decrypt Ciphertext (last 16):', Buffer.from(message.ciphertext.slice(-16)).toString('hex'));
 
-    const { plaintext, macKey } = decryptMessage(this.state, header, ciphertextWithNonce, ad);
+    const { plaintext, macKey: _macKey } = decryptMessage(this.state, header, ciphertextWithNonce, ad);
 
     // TODO: Verify HMAC-SHA-512 (Section 3.18.3)
     // hmac(macKey, ad || message_header || message_payload)

@@ -86,8 +86,13 @@ export function serializeDataMessage(msg: DataMessage): Uint8Array {
     throw new Error(`Invalid MAC length: expected 64 bytes, got ${msg.mac.byteLength}`);
   }
   const ctLength = msg.ciphertext.byteLength;
+  const oldMacKeysCount = msg.oldMacKeys.length;
+  if (oldMacKeysCount > 255) {
+    throw new Error(`Too many old MAC keys: max 255, got ${oldMacKeysCount}`);
+  }
 
-  const bytes = new Uint8Array(6 + 1 + 57 + 8 + 12 + 4 + ctLength + 64);
+  // Header(6) + Flags(1) + RatchetKey(57) + Identifier(8) + Nonce(12) + CTLen(4) + CT(len) + MAC(64) + OldMacKeysCount(1) + OldMacKeys(N*64)
+  const bytes = new Uint8Array(6 + 1 + 57 + 8 + 12 + 4 + ctLength + 64 + 1 + oldMacKeysCount * 64);
   let offset = 0;
 
   // Header (6)
@@ -125,6 +130,19 @@ export function serializeDataMessage(msg: DataMessage): Uint8Array {
   // MAC (64)
   bytes.set(msg.mac, offset);
   offset += 64;
+
+  // Old MAC Keys Count (1)
+  bytes[offset] = oldMacKeysCount;
+  offset += 1;
+
+  // Old MAC Keys (N * 64)
+  for (const key of msg.oldMacKeys) {
+    if (key.byteLength !== 64) {
+      throw new Error(`Invalid old MAC key length: expected 64 bytes, got ${key.byteLength}`);
+    }
+    bytes.set(key, offset);
+    offset += 64;
+  }
 
   return bytes;
 }
@@ -172,6 +190,23 @@ export function deserializeDataMessage(bytes: Uint8Array): DataMessage {
   const mac = bytes.slice(offset, offset + 64);
   offset += 64;
 
+  // Old MAC Keys Count (1)
+  if (bytes.byteLength < offset + 1) {
+    throw new Error('Truncated message (old MAC keys count)');
+  }
+  const oldMacKeysCount = bytes[offset]!;
+  offset += 1;
+
+  if (bytes.byteLength < offset + oldMacKeysCount * 64) {
+    throw new Error('Truncated message (old MAC keys)');
+  }
+
+  const oldMacKeys: Uint8Array[] = [];
+  for (let i = 0; i < oldMacKeysCount; i++) {
+    oldMacKeys.push(bytes.slice(offset, offset + 64));
+    offset += 64;
+  }
+
   if (offset !== bytes.byteLength) {
     throw new Error(`Trailing bytes in data message: ${bytes.byteLength - offset} extra byte(s)`);
   }
@@ -184,6 +219,7 @@ export function deserializeDataMessage(bytes: Uint8Array): DataMessage {
     nonce,
     ciphertext,
     mac,
+    oldMacKeys,
   };
 }
 

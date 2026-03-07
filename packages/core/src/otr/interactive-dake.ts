@@ -5,22 +5,22 @@
  * https://github.com/otrv4/otrv4/blob/master/otrv4.md#interactive-dake
  */
 
-import { generateKeypair as generateEd448, diffieHellman as ecdhEd448 } from '$core/crypto/ed448.js';
 import {
-  generateKeypair as generateDH3072,
+  deserializePublicKey as decodeDH3072,
   computeSharedSecret as dh3072,
   serializePublicKey as encodeDH3072,
-  deserializePublicKey as decodeDH3072,
+  generateKeypair as generateDH3072,
 } from '$core/crypto/dh3072.js';
-import { rsig, rvrf } from '$core/crypto/ring-sig.js';
+import { diffieHellman as ecdhEd448, generateKeypair as generateEd448 } from '$core/crypto/ed448.js';
 import { kdf } from '$core/crypto/kdf.js';
+import { rsig, rvrf } from '$core/crypto/ring-sig.js';
 import {
-  PROTOCOL_VERSION,
   OTRv4MessageType,
+  PROTOCOL_VERSION,
+  type AuthIMessage,
+  type AuthRMessage,
   type ClientProfile,
   type IdentityMessage,
-  type AuthRMessage,
-  type AuthIMessage,
 } from '../types.js';
 import { validateClientProfile } from './client-profile.js';
 
