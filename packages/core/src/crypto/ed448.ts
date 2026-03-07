@@ -18,6 +18,17 @@ export function sign(message: Uint8Array, privateKey: Uint8Array): Uint8Array {
 }
 
 /**
+ * Perform Ed448 Diffie-Hellman (X448).
+ * Note: OTRv4 uses Ed448 points for DAKE ephemeral keys.
+ */
+export function diffieHellman(privateKey: Uint8Array, publicKey: Uint8Array): Uint8Array {
+  const sk = ed448.utils.getExtendedPublicKey(privateKey).scalar;
+  const pk = ed448.Point.fromBytes(publicKey);
+  const shared = pk.multiply(sk).toBytes();
+  return shared;
+}
+
+/**
  * Verify an Ed448 signature.
  * Returns false for malformed inputs rather than throwing.
  */
