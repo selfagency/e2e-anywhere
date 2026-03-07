@@ -35,35 +35,26 @@ describe('Client Profile Lifecycle', () => {
   });
 
   it('performs full lifecycle including forging key generation', () => {
-    const { profile, forgingSecret } = createNewClientProfile(
-      instanceTag,
-      identityKeys.publicKey,
-      identityKeys.privateKey,
-    );
+    const profile = createNewClientProfile(instanceTag, identityKeys.publicKey, identityKeys.privateKey);
 
     expect(profile.publicKey).toEqual(identityKeys.publicKey);
-    expect(forgingSecret.byteLength).toBe(57);
+    expect(profile.forgingKey.byteLength).toBe(57);
     expect(validateClientProfile(profile)).toBe(true);
-
-    // Manual cleanup simulation
-    forgingSecret.fill(0);
-    expect(forgingSecret).toEqual(new Uint8Array(57).fill(0));
   });
 
   it('rejects an expired client profile', () => {
-    // Create a profile that expired 1 second ago
+    // createClientProfile rejects past expirations at creation time
     const pastExpiration = BigInt(Math.floor(Date.now() / 1000) - 1);
 
-    const profile = createClientProfile(
-      instanceTag,
-      identityKeys.publicKey,
-      forgingKeys.publicKey,
-      identityKeys.privateKey,
-      pastExpiration,
-    );
-
-    const isValid = validateClientProfile(profile);
-    expect(isValid).toBe(false);
+    expect(() =>
+      createClientProfile(
+        instanceTag,
+        identityKeys.publicKey,
+        forgingKeys.publicKey,
+        identityKeys.privateKey,
+        pastExpiration,
+      ),
+    ).toThrow('Expiration must be in the future');
   });
 
   it('rejects a profile with an invalid signature', () => {

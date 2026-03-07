@@ -16,25 +16,31 @@ export const CLIENT_PROFILE_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
  * "The forging key is a one-time EdDSA public key. Its secret key SHOULD be
  * deleted immediately after the profile is signed."
  *
+ * This helper only returns the public Client Profile. The ephemeral forging
+ * secret key is never exposed to callers and is zeroized in this function
+ * immediately after use.
+ *
  * @param instanceTag - User's unique 4-byte instance tag.
  * @param identityKeyH - User's long-term Ed448 public key (H).
  * @param longTermSecretH - User's long-term Ed448 secret key for signing.
  * @param expiration - Optional custom expiration timestamp (seconds).
  *
- * @returns An object containing the new profile and the ephemeral forging keys.
- * IMPORTANT: The caller is responsible for zeroing the forging secret key.
+ * @returns A new signed Client Profile bound to a fresh forging public key.
  */
 export function createNewClientProfile(
   instanceTag: Uint8Array,
   identityKeyH: Uint8Array,
   longTermSecretH: Uint8Array,
   expiration?: bigint,
-): { profile: ClientProfile; forgingSecret: Uint8Array } {
+): ClientProfile {
   const forgingKeypair = generateKeypair();
 
   const profile = createClientProfile(instanceTag, identityKeyH, forgingKeypair.publicKey, longTermSecretH, expiration);
 
-  return { profile, forgingSecret: forgingKeypair.privateKey };
+  // Zeroize the ephemeral forging secret key as soon as it is no longer needed.
+  forgingKeypair.privateKey.fill(0);
+
+  return profile;
 }
 
 /**
@@ -58,8 +64,15 @@ export function createClientProfile(
   if (instanceTag.byteLength !== 4) throw new Error('Invalid instance tag length');
   if (identityKeyH.byteLength !== 57) throw new Error('Invalid identity key length');
   if (forgingKey.byteLength !== 57) throw new Error('Invalid forging key length');
+  if (longTermSecretH.byteLength !== 57) throw new Error('Invalid long-term secret key length');
+  if (!validatePoint(identityKeyH)) throw new Error('Invalid identity key: not a valid Ed448 point');
+  if (!validatePoint(forgingKey)) throw new Error('Invalid forging key: not a valid Ed448 point');
 
-  const exp = expiration ?? BigInt(Math.floor((Date.now() + CLIENT_PROFILE_EXPIRATION_MS) / 1000));
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const maxExpiration = now + BigInt(7 * 24 * 60 * 60);
+  const exp = expiration ?? maxExpiration;
+  if (exp <= now) throw new Error('Expiration must be in the future');
+  if (exp > maxExpiration) throw new Error('Expiration exceeds maximum allowed 7-day lifetime');
 
   // OTRv4 Client Profile signing: H || ForgingKey || InstanceTag || Expiration
   const dataToSign = new Uint8Array(57 + 57 + 4 + 8);
@@ -99,7 +112,7 @@ export function validateClientProfile(profile: ClientProfile): boolean {
 
   // 3. Expiration check
   const now = BigInt(Math.floor(Date.now() / 1000));
-  if (profile.expiration < now) return false;
+  if (profile.expiration <= now) return false;
 
   // 4. Signature verification
   const dataToVerify = new Uint8Array(57 + 57 + 4 + 8);
