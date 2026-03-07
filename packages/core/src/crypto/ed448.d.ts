@@ -7,6 +7,11 @@ export declare function generateKeypair(): Ed448Keypair;
 /** Sign a message — returns a 114-byte signature. */
 export declare function sign(message: Uint8Array, privateKey: Uint8Array): Uint8Array;
 /**
+ * Perform Ed448 Diffie-Hellman (X448).
+ * Note: OTRv4 uses Ed448 points for DAKE ephemeral keys.
+ */
+export declare function diffieHellman(privateKey: Uint8Array, publicKey: Uint8Array): Uint8Array;
+/**
  * Verify an Ed448 signature.
  * Returns false for malformed inputs rather than throwing.
  */

@@ -50,6 +50,9 @@ export interface IdentityMessage {
  */
 export interface AuthRMessage {
   header: OTRv4Header;
+  clientProfile: ClientProfile;
+  Y: Uint8Array;
+  B: Uint8Array;
   sigma: Uint8Array;
 }
 /**

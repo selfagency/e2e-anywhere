@@ -1,9 +1,9 @@
 import {
+  OTRv4MessageType,
   PROTOCOL_VERSION,
   type ClientProfile,
   type DataMessage,
   type OTRv4Header,
-  OTRv4MessageType,
   type TLVRecord,
 } from '../types.js';
 /**

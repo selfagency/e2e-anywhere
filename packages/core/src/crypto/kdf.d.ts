@@ -7,6 +7,10 @@
  */
 /** Native output length of SHA-512 in bytes. */
 export declare const HASH_LEN = 64;
+/**
+ * SHAKE-256("OTRv4" || usageID || ...values, size)
+ */
+export declare function kdf(usage: number, values: Uint8Array[], length?: number): Uint8Array;
 export interface DeriveParams {
   /** Input key material. */
   ikm: Uint8Array;
