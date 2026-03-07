@@ -22,12 +22,15 @@ const OTR_PREFIX = new TextEncoder().encode('OTRv4');
  */
 export function kdf(usage: number, values: Uint8Array[], length: number = 64): Uint8Array {
   const h = shake256.create({ dkLen: length });
+  // console.log('KDF Usage:', usage.toString(16), 'Values:', values.map(v => Buffer.from(v).toString('hex')));
   h.update(OTR_PREFIX);
   h.update(Uint8Array.of(usage));
   for (const v of values) {
     h.update(v);
   }
-  return h.digest();
+  const out = h.digest();
+  // console.log('KDF Output:', Buffer.from(out).toString('hex'));
+  return out;
 }
 
 export interface DeriveParams {
