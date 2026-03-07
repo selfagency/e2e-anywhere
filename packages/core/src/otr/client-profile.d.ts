@@ -1,0 +1,56 @@
+import { type ClientProfile } from '../types.js';
+/**
+ * Client Profile implementation for OTRv4 (packages/core/src/otr/client-profile.ts)
+ *
+ * Based on OTRv4 Protocol Specification:
+ * https://github.com/otrv4/otrv4/blob/master/otrv4.md#client-profile
+ */
+export declare const CLIENT_PROFILE_EXPIRATION_MS: number;
+/**
+ * Create a new Client Profile with a fresh forging key.
+ *
+ * "The forging key is a one-time EdDSA public key. Its secret key SHOULD be
+ * deleted immediately after the profile is signed."
+ *
+ * @param instanceTag - User's unique 4-byte instance tag.
+ * @param identityKeyH - User's long-term Ed448 public key (H).
+ * @param longTermSecretH - User's long-term Ed448 secret key for signing.
+ * @param expiration - Optional custom expiration timestamp (seconds).
+ *
+ * @returns An object containing the new profile and the ephemeral forging keys.
+ * IMPORTANT: The caller is responsible for zeroing the forging secret key.
+ */
+export declare function createNewClientProfile(
+  instanceTag: Uint8Array,
+  identityKeyH: Uint8Array,
+  longTermSecretH: Uint8Array,
+  expiration?: bigint,
+): {
+  profile: ClientProfile;
+  forgingSecret: Uint8Array;
+};
+/**
+ * Create a Client Profile.
+ *
+ * @param instanceTag - User's unique 4-byte instance tag.
+ * @param identityKeyH - User's long-term Ed448 public key (H).
+ * @param forgingKey - User's Ed448 forging public key.
+ * @param longTermSecretH - User's long-term Ed448 secret key for signing.
+ * @param expiration - Optional custom expiration timestamp (seconds). Defaults to 1 week from now.
+ *
+ * Note: Default behavior is to discard the forging key secret immediately after profile signing.
+ */
+export declare function createClientProfile(
+  instanceTag: Uint8Array,
+  identityKeyH: Uint8Array,
+  forgingKey: Uint8Array,
+  longTermSecretH: Uint8Array,
+  expiration?: bigint,
+): ClientProfile;
+/**
+ * Validate a Client Profile.
+ *
+ * @param profile - The Client Profile to validate.
+ * @returns true if the signature is valid and the profile is not expired.
+ */
+export declare function validateClientProfile(profile: ClientProfile): boolean;
