@@ -1,11 +1,11 @@
 ---
 # e2e-anywhere-epoo
 title: 3.16 Interactive DAKE handshake
-status: in-progress
+status: completed
 type: feature
 priority: critical
 created_at: 2026-03-04T05:04:33Z
-updated_at: 2026-03-07T01:35:48Z
+updated_at: 2026-03-07T05:02:55Z
 parent: e2e-anywhere-wdw9
 ---
 
