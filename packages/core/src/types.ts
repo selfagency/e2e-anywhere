@@ -12,8 +12,8 @@ export const PROTOCOL_VERSION = 4;
  * Common Header for all OTRv4 messages.
  */
 export interface OTRv4Header {
-  protocolVersion: number;
-  messageType: number;
+  protocolVersion: typeof PROTOCOL_VERSION;
+  messageType: OTRv4MessageType;
   instanceTag: Uint8Array; // 4 bytes
 }
 
@@ -75,16 +75,17 @@ export interface DataMessage {
   flags: number; // 1 byte
   ratchetKey: Uint8Array; // 57 bytes (Ed448)
   identifier: Uint8Array; // 8 bytes (SSID-based/Session ID)
-  nonce: Uint8Array; // 12 bytes (always 0 per spec for ChaCha20)
+  nonce: Uint8Array; // 12 bytes (ChaCha20 nonce; validated only for length)
   ciphertext: Uint8Array;
   mac: Uint8Array; // 64 bytes (SHAKE-256 HMAC)
 }
 
 /**
  * TLV (Type-Length-Value) Records
+ *
+ * The length is derived from `value.byteLength` during serialization.
  */
 export interface TLVRecord {
   type: number; // 2 bytes
-  length: number; // 2 bytes
   value: Uint8Array;
 }
