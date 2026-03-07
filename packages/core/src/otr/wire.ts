@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, type OTRv4Header, OTRv4MessageType } from '../types.js';
+import { OTRv4MessageType, PROTOCOL_VERSION, type OTRv4Header } from '../types.js';
 
 /**
  * Protocol Wire-format functions for OTRv4 (packages/core/src/otr/wire.ts).
@@ -42,7 +42,7 @@ export function deserializeHeader(bytes: Uint8Array): OTRv4Header {
   }
 
   const rawType = bytes[1];
-  if (!VALID_MESSAGE_TYPES.has(rawType)) {
+  if (rawType === undefined || !VALID_MESSAGE_TYPES.has(rawType)) {
     throw new Error(`Invalid message type: ${rawType}`);
   }
 

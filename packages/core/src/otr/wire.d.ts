@@ -1,8 +1,5 @@
 import { PROTOCOL_VERSION, type OTRv4Header, OTRv4MessageType } from '../types.js';
 /**
- * Protocol Wire-format functions for OTRv4 (packages/core/src/otr/wire.ts).
- */
-/**
  * Serialize a message header to bytes.
  * Layout: protocol_version (1byte) | message_type (1byte) | instance_tag (4bytes)
  */

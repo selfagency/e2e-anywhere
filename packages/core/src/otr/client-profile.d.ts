@@ -33,10 +33,10 @@ export declare function createNewClientProfile(
  * Create a Client Profile.
  *
  * @param instanceTag - User's unique 4-byte instance tag.
- * @param identityKeyH - User's long-term Ed448 public key (H). Must be a valid prime-order Ed448 point.
- * @param forgingKey - User's Ed448 forging public key. Must be a valid prime-order Ed448 point.
- * @param longTermSecretH - User's long-term Ed448 secret key for signing. Must be exactly 57 bytes.
- * @param expiration - Optional custom expiration timestamp (seconds). Must not exceed 7 days from now.
+ * @param identityKeyH - User's long-term Ed448 public key (H).
+ * @param forgingKey - User's Ed448 forging public key.
+ * @param longTermSecretH - User's long-term Ed448 secret key for signing.
+ * @param expiration - Optional custom expiration timestamp (seconds). Defaults to 1 week from now.
  *
  * Note: Default behavior is to discard the forging key secret immediately after profile signing.
  */
