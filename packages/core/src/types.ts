@@ -56,6 +56,9 @@ export interface IdentityMessage {
  */
 export interface AuthRMessage {
   header: OTRv4Header;
+  clientProfile: ClientProfile;
+  Y: Uint8Array; // 57 bytes (Ed448 ephemeral)
+  B: Uint8Array; // 384 bytes (DH3072 ephemeral)
   sigma: Uint8Array; // Ring Signature
 }
 
