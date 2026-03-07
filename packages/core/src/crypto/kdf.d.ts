@@ -5,8 +5,19 @@
  *   const key = deriveKey({ ikm, salt, info: encode('MyContext'), length: 32 });
  *   const mac  = hmac({ key, message });
  */
+import { hmac as nobleHmac } from '@noble/hashes/hmac.js';
+import { hkdf } from '@noble/hashes/hkdf.js';
+import { sha512 } from '@noble/hashes/sha2.js';
+import { shake256 } from '@noble/hashes/sha3.js';
+
 /** Native output length of SHA-512 in bytes. */
 export declare const HASH_LEN = 64;
+
+/**
+ * SHAKE-256("OTRv4" || usageID || ...values, size)
+ */
+export declare function kdf(usage: number, values: Uint8Array[], length?: number): Uint8Array;
+
 export interface DeriveParams {
   /** Input key material. */
   ikm: Uint8Array;
