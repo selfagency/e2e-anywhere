@@ -1,6 +1,6 @@
 import { generateKeypair as generateEd448 } from '$core/crypto/ed448.js';
 import { createNewClientProfile } from '$core/otr/client-profile.js';
-import { DAKEState, handleAuthI, handleAuthR, handleIdentity, initiateDAKE } from '$core/otr/interactive-dake.js';
+import { DAKEStateStatus, handleAuthI, handleAuthR, handleIdentity, initiateDAKE } from '$core/otr/interactive-dake.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('Interactive DAKEZ Handshake', () => {
@@ -20,7 +20,7 @@ describe('Interactive DAKEZ Handshake', () => {
     const aliceProfile = createNewClientProfile(aliceInstance, aliceIdentity.publicKey, aliceIdentity.privateKey);
     const { message: identMsg, dakeState: aliceState1 } = await initiateDAKE(aliceInstance, aliceProfile);
 
-    expect(aliceState1.status).toBe(DAKEState.WAITING_AUTH_R);
+    expect(aliceState1.status).toBe(DAKEStateStatus.WAITING_AUTH_R);
 
     // 2. Bob handles Identity and responds with Auth-R
     const bobProfile = createNewClientProfile(bobInstance, bobIdentity.publicKey, bobIdentity.privateKey);
@@ -31,7 +31,7 @@ describe('Interactive DAKEZ Handshake', () => {
       identMsg,
     );
 
-    expect(bobState1.status).toBe(DAKEState.WAITING_AUTH_I);
+    expect(bobState1.status).toBe(DAKEStateStatus.WAITING_AUTH_I);
     expect(bobState1.ssid).toBeDefined();
 
     // 3. Alice handles Auth-R and responds with Auth-I
@@ -41,13 +41,13 @@ describe('Interactive DAKEZ Handshake', () => {
       authRMsg,
     );
 
-    expect(aliceState2.status).toBe(DAKEState.ENCRYPTED_MESSAGES);
+    expect(aliceState2.status).toBe(DAKEStateStatus.ENCRYPTED_MESSAGES);
     expect(aliceState2.ssid).toEqual(bobState1.ssid);
 
     // 4. Bob handles Auth-I and finalizes
     const { dakeState: bobState2 } = await handleAuthI(bobState1, bobIdentity.privateKey, authIMsg);
 
-    expect(bobState2.status).toBe(DAKEState.ENCRYPTED_MESSAGES);
+    expect(bobState2.status).toBe(DAKEStateStatus.ENCRYPTED_MESSAGES);
     expect(bobState2.ssid).toEqual(aliceState2.ssid);
   });
 });
