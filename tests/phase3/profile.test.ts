@@ -89,19 +89,21 @@ describe('Client Profile Lifecycle', () => {
 
   it('validates 1-week default expiration', () => {
     vi.useFakeTimers();
-    const startTime = 1000000000000; // Fixed timestamp
-    vi.setSystemTime(startTime);
+    try {
+      const startTime = 1000000000000; // Fixed timestamp
+      vi.setSystemTime(startTime);
 
-    const profile = createClientProfile(
-      instanceTag,
-      identityKeys.publicKey,
-      forgingKeys.publicKey,
-      identityKeys.privateKey,
-    );
+      const profile = createClientProfile(
+        instanceTag,
+        identityKeys.publicKey,
+        forgingKeys.publicKey,
+        identityKeys.privateKey,
+      );
 
-    const expectedExpiration = BigInt(Math.floor(startTime / 1000) + 7 * 24 * 60 * 60);
-    expect(profile.expiration).toBe(expectedExpiration);
-
-    vi.useRealTimers();
+      const expectedExpiration = BigInt(Math.floor(startTime / 1000) + 7 * 24 * 60 * 60);
+      expect(profile.expiration).toBe(expectedExpiration);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -1,4 +1,11 @@
-import { OTRv4MessageType, PROTOCOL_VERSION, type OTRv4Header } from '../types.js';
+import {
+  OTRv4MessageType,
+  PROTOCOL_VERSION,
+  type ClientProfile,
+  type DataMessage,
+  type OTRv4Header,
+  type TLVRecord,
+} from '../types.js';
 
 /**
  * Protocol Wire-format functions for OTRv4 (packages/core/src/otr/wire.ts).
@@ -61,15 +68,7 @@ export function deserializeHeader(bytes: Uint8Array): OTRv4Header {
  *
  * Note: Length is Big-Endian.
  */
-export function serializeDataMessage(msg: {
-  header: OTRv4Header;
-  flags: number;
-  ratchetKey: Uint8Array;
-  identifier: Uint8Array;
-  nonce: Uint8Array;
-  ciphertext: Uint8Array;
-  mac: Uint8Array;
-}): Uint8Array {
+export function serializeDataMessage(msg: DataMessage): Uint8Array {
   if (msg.header.messageType !== OTRv4MessageType.DATA) {
     throw new Error(`serializeDataMessage requires header.messageType=DATA, got ${msg.header.messageType}`);
   }
@@ -133,15 +132,7 @@ export function serializeDataMessage(msg: {
 /**
  * Deserialize a data message from bytes.
  */
-export function deserializeDataMessage(bytes: Uint8Array): {
-  header: OTRv4Header;
-  flags: number;
-  ratchetKey: Uint8Array;
-  identifier: Uint8Array;
-  nonce: Uint8Array;
-  ciphertext: Uint8Array;
-  mac: Uint8Array;
-} {
+export function deserializeDataMessage(bytes: Uint8Array): DataMessage {
   if (bytes.byteLength < 6 + 1 + 57 + 8 + 12 + 4 + 64) {
     throw new Error('Data message too short');
   }
@@ -203,13 +194,7 @@ const MAX_UINT64 = 0xffffffffffffffffn;
  * Layout: Instance Tag (4) | Public Key (57) | Forging Key (57) |
  *         Expiration (8) (Big-Endian) | Signature (114)
  */
-export function serializeClientProfile(profile: {
-  instanceTag: Uint8Array;
-  publicKey: Uint8Array;
-  forgingKey: Uint8Array;
-  expiration: bigint;
-  signature: Uint8Array;
-}): Uint8Array {
+export function serializeClientProfile(profile: ClientProfile): Uint8Array {
   if (profile.instanceTag.byteLength !== 4) {
     throw new Error(`Invalid instanceTag length: expected 4 bytes, got ${profile.instanceTag.byteLength}`);
   }
@@ -249,13 +234,7 @@ export function serializeClientProfile(profile: {
 /**
  * Deserialize a Client Profile from bytes.
  */
-export function deserializeClientProfile(bytes: Uint8Array): {
-  instanceTag: Uint8Array;
-  publicKey: Uint8Array;
-  forgingKey: Uint8Array;
-  expiration: bigint;
-  signature: Uint8Array;
-} {
+export function deserializeClientProfile(bytes: Uint8Array): ClientProfile {
   const EXPECTED_LENGTH = 4 + 57 + 57 + 8 + 114;
   if (bytes.byteLength !== EXPECTED_LENGTH) {
     throw new Error(`Client Profile must be exactly ${EXPECTED_LENGTH} bytes, got ${bytes.byteLength}`);
@@ -285,10 +264,10 @@ export function deserializeClientProfile(bytes: Uint8Array): {
  * Layout: Type (2) | Length (2) | Value (len)
  * All multi-byte fields are Big-Endian.
  */
-export function serializeTLVs(tlvs: { type: number; value: Uint8Array }[]): Uint8Array {
+export function serializeTLVs(tlvs: TLVRecord[]): Uint8Array {
   let totalLen = 0;
   for (const tlv of tlvs) {
-    if (tlv.type < 0 || tlv.type > 0xffff) {
+    if (!Number.isSafeInteger(tlv.type) || tlv.type < 0 || tlv.type > 0xffff) {
       throw new Error(`TLV type ${tlv.type} is out of uint16 range`);
     }
     if (tlv.value.byteLength > 0xffff) {
@@ -316,8 +295,8 @@ export function serializeTLVs(tlvs: { type: number; value: Uint8Array }[]): Uint
 /**
  * Deserialize TLV records from bytes.
  */
-export function deserializeTLVs(bytes: Uint8Array): { type: number; value: Uint8Array }[] {
-  const tlvs: { type: number; value: Uint8Array }[] = [];
+export function deserializeTLVs(bytes: Uint8Array): TLVRecord[] {
+  const tlvs: TLVRecord[] = [];
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let offset = 0;
 
