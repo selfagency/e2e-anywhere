@@ -56,6 +56,9 @@ export interface IdentityMessage {
  */
 export interface AuthRMessage {
   header: OTRv4Header;
+  clientProfile: ClientProfile;
+  Y: Uint8Array; // 57 bytes (Ed448 ephemeral)
+  B: Uint8Array; // 384 bytes (DH3072 ephemeral)
   sigma: Uint8Array; // Ring Signature
 }
 
@@ -73,11 +76,14 @@ export interface AuthIMessage {
 export interface DataMessage {
   header: OTRv4Header;
   flags: number; // 1 byte
+  n: number; // 4 bytes (Section 3.18)
+  pn: number; // 4 bytes (Section 3.17, 3.18)
   ratchetKey: Uint8Array; // 57 bytes (Ed448)
   identifier: Uint8Array; // 8 bytes (SSID-based/Session ID)
   nonce: Uint8Array; // 12 bytes (ChaCha20 nonce; validated only for length)
   ciphertext: Uint8Array;
-  mac: Uint8Array; // 64 bytes (SHAKE-256 HMAC)
+  mac: Uint8Array; // 64 bytes (HMAC-SHA-512)
+  oldMacKeys: Uint8Array[]; // Disclosure for deniability (Section 3.19)
 }
 
 /**

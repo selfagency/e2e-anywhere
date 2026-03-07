@@ -6,12 +6,32 @@
  *   const mac  = hmac({ key, message });
  */
 
-import { hmac as nobleHmac } from '@noble/hashes/hmac.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
+import { hmac as nobleHmac } from '@noble/hashes/hmac.js';
 import { sha512 } from '@noble/hashes/sha2.js';
+import { shake256 } from '@noble/hashes/sha3.js';
 
 /** Native output length of SHA-512 in bytes. */
 export const HASH_LEN = 64;
+
+/** OTRv4 protocol prefix for all hash inputs. */
+const OTR_PREFIX = new TextEncoder().encode('OTRv4');
+
+/**
+ * SHAKE-256("OTRv4" || usageID || ...values, size)
+ */
+export function kdf(usage: number, values: Uint8Array[], length: number = 64): Uint8Array {
+  const h = shake256.create({ dkLen: length });
+  // console.log('KDF Usage:', usage.toString(16), 'Values:', values.map(v => Buffer.from(v).toString('hex')));
+  h.update(OTR_PREFIX);
+  h.update(Uint8Array.of(usage));
+  for (const v of values) {
+    h.update(v);
+  }
+  const out = h.digest();
+  // console.log('KDF Output:', Buffer.from(out).toString('hex'));
+  return out;
+}
 
 export interface DeriveParams {
   /** Input key material. */
