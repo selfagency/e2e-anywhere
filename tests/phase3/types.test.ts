@@ -13,7 +13,7 @@ import {
 } from '$core/otr/wire.js';
 
 describe('phase 3.14 — OTRv4 Header Serialization', () => {
-  it('serializes a standard header correctly (4 bytes type, 4 bytes tag)', () => {
+  it('serializes a standard header correctly (1 byte version, 1 byte type, 4 bytes tag)', () => {
     const instanceTag = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
     const header = {
       protocolVersion: PROTOCOL_VERSION,
@@ -151,5 +151,201 @@ describe('phase 3.14 — OTRv4 TLV Serialization', () => {
   it('throws for truncated TLV buffer', () => {
     const bytes = new Uint8Array([0x00, 0x01, 0x00, 0x05, 0xaa, 0xbb]); // claims 5 bytes, only has 2
     expect(() => deserializeTLVs(bytes)).toThrow(/TLV length 5 exceeds remaining buffer/);
+  });
+});
+
+describe('phase 3.14 — OTRv4 wire-format rejection of malformed inputs', () => {
+  it('serializeHeader throws for invalid instanceTag length', () => {
+    expect(() =>
+      serializeHeader({
+        protocolVersion: PROTOCOL_VERSION,
+        messageType: OTRv4MessageType.DATA,
+        instanceTag: new Uint8Array(3), // too short
+      }),
+    ).toThrow(/Invalid instanceTag length/);
+  });
+
+  it('deserializeHeader throws for unknown message type', () => {
+    const raw = new Uint8Array([0x04, 0xff, 0x00, 0x00, 0x00, 0x01]); // 0xff is not a valid type
+    expect(() => deserializeHeader(raw)).toThrow(/Invalid message type/);
+  });
+
+  it('serializeDataMessage throws for wrong ratchetKey length', () => {
+    expect(() =>
+      serializeDataMessage({
+        header: {
+          protocolVersion: PROTOCOL_VERSION,
+          messageType: OTRv4MessageType.DATA,
+          instanceTag: new Uint8Array(4),
+        },
+        flags: 0,
+        ratchetKey: new Uint8Array(56), // 56 instead of 57
+        identifier: new Uint8Array(8),
+        nonce: new Uint8Array(12),
+        ciphertext: new Uint8Array(0),
+        mac: new Uint8Array(64),
+      }),
+    ).toThrow(/Invalid ratchetKey length/);
+  });
+
+  it('serializeDataMessage throws for wrong identifier length', () => {
+    expect(() =>
+      serializeDataMessage({
+        header: {
+          protocolVersion: PROTOCOL_VERSION,
+          messageType: OTRv4MessageType.DATA,
+          instanceTag: new Uint8Array(4),
+        },
+        flags: 0,
+        ratchetKey: new Uint8Array(57),
+        identifier: new Uint8Array(7), // 7 instead of 8
+        nonce: new Uint8Array(12),
+        ciphertext: new Uint8Array(0),
+        mac: new Uint8Array(64),
+      }),
+    ).toThrow(/Invalid identifier length/);
+  });
+
+  it('serializeDataMessage throws for wrong nonce length', () => {
+    expect(() =>
+      serializeDataMessage({
+        header: {
+          protocolVersion: PROTOCOL_VERSION,
+          messageType: OTRv4MessageType.DATA,
+          instanceTag: new Uint8Array(4),
+        },
+        flags: 0,
+        ratchetKey: new Uint8Array(57),
+        identifier: new Uint8Array(8),
+        nonce: new Uint8Array(11), // 11 instead of 12
+        ciphertext: new Uint8Array(0),
+        mac: new Uint8Array(64),
+      }),
+    ).toThrow(/Invalid nonce length/);
+  });
+
+  it('serializeDataMessage throws for wrong MAC length', () => {
+    expect(() =>
+      serializeDataMessage({
+        header: {
+          protocolVersion: PROTOCOL_VERSION,
+          messageType: OTRv4MessageType.DATA,
+          instanceTag: new Uint8Array(4),
+        },
+        flags: 0,
+        ratchetKey: new Uint8Array(57),
+        identifier: new Uint8Array(8),
+        nonce: new Uint8Array(12),
+        ciphertext: new Uint8Array(0),
+        mac: new Uint8Array(63), // 63 instead of 64
+      }),
+    ).toThrow(/Invalid MAC length/);
+  });
+
+  it('deserializeDataMessage throws for trailing bytes', () => {
+    const validMsg = {
+      header: { protocolVersion: PROTOCOL_VERSION, messageType: OTRv4MessageType.DATA, instanceTag: new Uint8Array(4) },
+      flags: 0,
+      ratchetKey: new Uint8Array(57),
+      identifier: new Uint8Array(8),
+      nonce: new Uint8Array(12),
+      ciphertext: new Uint8Array(4),
+      mac: new Uint8Array(64),
+    };
+    const serialized = serializeDataMessage(validMsg);
+    const withTrailing = new Uint8Array(serialized.byteLength + 2);
+    withTrailing.set(serialized);
+    expect(() => deserializeDataMessage(withTrailing)).toThrow(/Trailing bytes in data message/);
+  });
+
+  it('serializeClientProfile throws for invalid instanceTag length', () => {
+    expect(() =>
+      serializeClientProfile({
+        instanceTag: new Uint8Array(5), // wrong length
+        publicKey: new Uint8Array(57),
+        forgingKey: new Uint8Array(57),
+        expiration: 0n,
+        signature: new Uint8Array(114),
+      }),
+    ).toThrow(/Invalid instanceTag length/);
+  });
+
+  it('serializeClientProfile throws for invalid publicKey length', () => {
+    expect(() =>
+      serializeClientProfile({
+        instanceTag: new Uint8Array(4),
+        publicKey: new Uint8Array(56), // wrong length
+        forgingKey: new Uint8Array(57),
+        expiration: 0n,
+        signature: new Uint8Array(114),
+      }),
+    ).toThrow(/Invalid publicKey length/);
+  });
+
+  it('serializeClientProfile throws for invalid forgingKey length', () => {
+    expect(() =>
+      serializeClientProfile({
+        instanceTag: new Uint8Array(4),
+        publicKey: new Uint8Array(57),
+        forgingKey: new Uint8Array(58), // wrong length
+        expiration: 0n,
+        signature: new Uint8Array(114),
+      }),
+    ).toThrow(/Invalid forgingKey length/);
+  });
+
+  it('serializeClientProfile throws for invalid signature length', () => {
+    expect(() =>
+      serializeClientProfile({
+        instanceTag: new Uint8Array(4),
+        publicKey: new Uint8Array(57),
+        forgingKey: new Uint8Array(57),
+        expiration: 0n,
+        signature: new Uint8Array(113), // wrong length
+      }),
+    ).toThrow(/Invalid signature length/);
+  });
+
+  it('serializeClientProfile throws for negative expiration', () => {
+    expect(() =>
+      serializeClientProfile({
+        instanceTag: new Uint8Array(4),
+        publicKey: new Uint8Array(57),
+        forgingKey: new Uint8Array(57),
+        expiration: -1n, // negative
+        signature: new Uint8Array(114),
+      }),
+    ).toThrow(/Invalid expiration value/);
+  });
+
+  it('serializeClientProfile throws for expiration exceeding uint64 max', () => {
+    expect(() =>
+      serializeClientProfile({
+        instanceTag: new Uint8Array(4),
+        publicKey: new Uint8Array(57),
+        forgingKey: new Uint8Array(57),
+        expiration: 0x10000000000000000n, // exceeds uint64
+        signature: new Uint8Array(114),
+      }),
+    ).toThrow(/Invalid expiration value/);
+  });
+
+  it('serializeTLVs throws for type out of uint16 range', () => {
+    expect(() => serializeTLVs([{ type: 0x10000, value: new Uint8Array(1) }])).toThrow(
+      /TLV type .* is out of uint16 range/,
+    );
+  });
+
+  it('serializeTLVs throws for value length exceeding uint16', () => {
+    // Create a value that's too long to fit in a uint16 length field
+    expect(() => serializeTLVs([{ type: 1, value: new Uint8Array(0x10000) }])).toThrow(
+      /TLV value length .* is out of uint16 range/,
+    );
+  });
+
+  it('deserializeTLVs throws for trailing bytes after complete TLV records', () => {
+    // One complete TLV: type=1, length=1, value=[0xaa], then one extra byte
+    const bytes = new Uint8Array([0x00, 0x01, 0x00, 0x01, 0xaa, 0xff]);
+    expect(() => deserializeTLVs(bytes)).toThrow(/Malformed TLV stream: 1 trailing byte/);
   });
 });

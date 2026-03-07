@@ -12,8 +12,8 @@ export const PROTOCOL_VERSION = 4;
  * Common Header for all OTRv4 messages.
  */
 export interface OTRv4Header {
-  protocolVersion: number;
-  messageType: number;
+  protocolVersion: typeof PROTOCOL_VERSION;
+  messageType: OTRv4MessageType;
   instanceTag: Uint8Array; // 4 bytes
 }
 
@@ -82,9 +82,10 @@ export interface DataMessage {
 
 /**
  * TLV (Type-Length-Value) Records
+ *
+ * The length is derived from `value.byteLength` during serialization.
  */
 export interface TLVRecord {
   type: number; // 2 bytes
-  length: number; // 2 bytes
   value: Uint8Array;
 }
