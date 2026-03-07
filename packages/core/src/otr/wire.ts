@@ -9,6 +9,9 @@ import { PROTOCOL_VERSION, type OTRv4Header, OTRv4MessageType } from '../types.j
  * Layout: protocol_version (1byte) | message_type (1byte) | instance_tag (4bytes)
  */
 export function serializeHeader(header: OTRv4Header): Uint8Array {
+  if (header.instanceTag.byteLength !== 4) throw new Error('Invalid instance tag: expected 4 bytes');
+  if (header.protocolVersion !== PROTOCOL_VERSION)
+    throw new Error(`Invalid protocol version: expected ${PROTOCOL_VERSION}, got ${header.protocolVersion}`);
   const bytes = new Uint8Array(6);
   bytes[0] = header.protocolVersion;
   bytes[1] = header.messageType;
@@ -54,6 +57,11 @@ export function serializeDataMessage(msg: {
   const headerBytes = serializeHeader(msg.header);
   const ctLength = msg.ciphertext.byteLength;
 
+  if (msg.ratchetKey.byteLength !== 57) throw new Error('Invalid ratchet key: expected 57 bytes');
+  if (msg.identifier.byteLength !== 8) throw new Error('Invalid identifier: expected 8 bytes');
+  if (msg.nonce.byteLength !== 12) throw new Error('Invalid nonce: expected 12 bytes');
+  if (msg.mac.byteLength !== 64) throw new Error('Invalid MAC: expected 64 bytes');
+
   const bytes = new Uint8Array(6 + 1 + 57 + 8 + 12 + 4 + ctLength + 64);
   let offset = 0;
 
@@ -66,15 +74,15 @@ export function serializeDataMessage(msg: {
   offset += 1;
 
   // RatchetKey (57)
-  bytes.set(msg.ratchetKey.slice(0, 57), offset);
+  bytes.set(msg.ratchetKey, offset);
   offset += 57;
 
   // Identifier (8)
-  bytes.set(msg.identifier.slice(0, 8), offset);
+  bytes.set(msg.identifier, offset);
   offset += 8;
 
   // Nonce (12)
-  bytes.set(msg.nonce.slice(0, 12), offset);
+  bytes.set(msg.nonce, offset);
   offset += 12;
 
   // CT Length (4)
@@ -87,7 +95,7 @@ export function serializeDataMessage(msg: {
   offset += ctLength;
 
   // MAC (64)
-  bytes.set(msg.mac.slice(0, 64), offset);
+  bytes.set(msg.mac, offset);
   offset += 64;
 
   return bytes;
@@ -139,6 +147,12 @@ export function deserializeDataMessage(bytes: Uint8Array): {
   offset += ctLength;
 
   const mac = bytes.slice(offset, offset + 64);
+  offset += 64;
+
+  const trailingDataMsg = bytes.byteLength - offset;
+  if (trailingDataMsg !== 0) {
+    throw new Error(`Trailing ${trailingDataMsg} byte(s) after data message`);
+  }
 
   return {
     header,
@@ -163,23 +177,28 @@ export function serializeClientProfile(profile: {
   expiration: bigint;
   signature: Uint8Array;
 }): Uint8Array {
+  if (profile.instanceTag.byteLength !== 4) throw new Error('Invalid instance tag: expected 4 bytes');
+  if (profile.publicKey.byteLength !== 57) throw new Error('Invalid public key: expected 57 bytes');
+  if (profile.forgingKey.byteLength !== 57) throw new Error('Invalid forging key: expected 57 bytes');
+  if (profile.signature.byteLength !== 114) throw new Error('Invalid signature: expected 114 bytes');
+
   const bytes = new Uint8Array(4 + 57 + 57 + 8 + 114);
   let offset = 0;
 
-  bytes.set(profile.instanceTag.slice(0, 4), offset);
+  bytes.set(profile.instanceTag, offset);
   offset += 4;
 
-  bytes.set(profile.publicKey.slice(0, 57), offset);
+  bytes.set(profile.publicKey, offset);
   offset += 57;
 
-  bytes.set(profile.forgingKey.slice(0, 57), offset);
+  bytes.set(profile.forgingKey, offset);
   offset += 57;
 
   const view = new DataView(bytes.buffer);
   view.setBigUint64(offset, profile.expiration, false);
   offset += 8;
 
-  bytes.set(profile.signature.slice(0, 114), offset);
+  bytes.set(profile.signature, offset);
   return bytes;
 }
 
@@ -224,6 +243,10 @@ export function deserializeClientProfile(bytes: Uint8Array): {
 export function serializeTLVs(tlvs: { type: number; value: Uint8Array }[]): Uint8Array {
   let totalLen = 0;
   for (const tlv of tlvs) {
+    if (!Number.isInteger(tlv.type) || tlv.type < 0 || tlv.type > 65535)
+      throw new Error(`TLV type ${tlv.type} out of range for uint16`);
+    if (tlv.value.byteLength > 65535)
+      throw new Error(`TLV value length ${tlv.value.byteLength} exceeds uint16 maximum (65535)`);
     totalLen += 4 + tlv.value.byteLength;
   }
 
@@ -264,6 +287,11 @@ export function deserializeTLVs(bytes: Uint8Array): { type: number; value: Uint8
     const value = bytes.slice(offset, offset + length);
     offset += length;
     tlvs.push({ type, value });
+  }
+
+  if (offset !== bytes.byteLength) {
+    const remaining = bytes.byteLength - offset;
+    throw new Error(`Trailing ${remaining} byte(s) after TLV records`);
   }
 
   return tlvs;
