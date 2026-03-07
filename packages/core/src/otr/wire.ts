@@ -4,6 +4,11 @@ import { PROTOCOL_VERSION, type OTRv4Header, OTRv4MessageType } from '../types.j
  * Protocol Wire-format functions for OTRv4 (packages/core/src/otr/wire.ts).
  */
 
+/** Pre-computed set of valid numeric OTRv4MessageType values. */
+const VALID_MESSAGE_TYPES: ReadonlySet<number> = new Set(
+  Object.values(OTRv4MessageType).filter((v): v is number => typeof v === 'number'),
+);
+
 /**
  * Serialize a message header to bytes.
  * Layout: protocol_version (1byte) | message_type (1byte) | instance_tag (4bytes)
@@ -12,8 +17,7 @@ export function serializeHeader(header: OTRv4Header): Uint8Array {
   if (header.protocolVersion !== PROTOCOL_VERSION) {
     throw new Error(`Invalid protocol version: expected ${PROTOCOL_VERSION}, got ${header.protocolVersion}`);
   }
-  const validMessageTypes = Object.values(OTRv4MessageType).filter((v): v is number => typeof v === 'number');
-  if (!validMessageTypes.includes(header.messageType)) {
+  if (!VALID_MESSAGE_TYPES.has(header.messageType)) {
     throw new Error(`Invalid message type: ${header.messageType}`);
   }
   if (header.instanceTag.byteLength !== 4) {
@@ -38,13 +42,12 @@ export function deserializeHeader(bytes: Uint8Array): OTRv4Header {
   }
 
   const rawType = bytes[1];
-  const validMessageTypes = Object.values(OTRv4MessageType).filter((v): v is number => typeof v === 'number');
-  if (!validMessageTypes.includes(rawType)) {
+  if (!VALID_MESSAGE_TYPES.has(rawType)) {
     throw new Error(`Invalid message type: ${rawType}`);
   }
 
   return {
-    protocolVersion: bytes[0],
+    protocolVersion: PROTOCOL_VERSION,
     messageType: rawType as OTRv4MessageType,
     instanceTag: bytes.slice(2, 6),
   };
@@ -67,6 +70,9 @@ export function serializeDataMessage(msg: {
   ciphertext: Uint8Array;
   mac: Uint8Array;
 }): Uint8Array {
+  if (msg.header.messageType !== OTRv4MessageType.DATA) {
+    throw new Error(`serializeDataMessage requires header.messageType=DATA, got ${msg.header.messageType}`);
+  }
   const headerBytes = serializeHeader(msg.header);
   if (msg.ratchetKey.byteLength !== 57) {
     throw new Error(`Invalid ratchetKey length: expected 57 bytes, got ${msg.ratchetKey.byteLength}`);
@@ -90,6 +96,9 @@ export function serializeDataMessage(msg: {
   offset += 6;
 
   // Flags (1)
+  if (typeof msg.flags !== 'number' || !Number.isSafeInteger(msg.flags) || msg.flags < 0 || msg.flags > 0xff) {
+    throw new Error(`Invalid flags value: expected uint8 (0-255), got ${String(msg.flags)}`);
+  }
   bytes[offset] = msg.flags;
   offset += 1;
 
@@ -139,6 +148,9 @@ export function deserializeDataMessage(bytes: Uint8Array): {
 
   let offset = 0;
   const header = deserializeHeader(bytes.slice(0, 6));
+  if (header.messageType !== OTRv4MessageType.DATA) {
+    throw new Error(`Invalid message type for data message: ${header.messageType}`);
+  }
   offset += 6;
 
   const flagsValue = bytes[offset];
@@ -244,8 +256,9 @@ export function deserializeClientProfile(bytes: Uint8Array): {
   expiration: bigint;
   signature: Uint8Array;
 } {
-  if (bytes.byteLength < 4 + 57 + 57 + 8 + 114) {
-    throw new Error('Client Profile too short');
+  const EXPECTED_LENGTH = 4 + 57 + 57 + 8 + 114;
+  if (bytes.byteLength !== EXPECTED_LENGTH) {
+    throw new Error(`Client Profile must be exactly ${EXPECTED_LENGTH} bytes, got ${bytes.byteLength}`);
   }
 
   let offset = 0;

@@ -75,7 +75,7 @@ export interface DataMessage {
   flags: number; // 1 byte
   ratchetKey: Uint8Array; // 57 bytes (Ed448)
   identifier: Uint8Array; // 8 bytes (SSID-based/Session ID)
-  nonce: Uint8Array; // 12 bytes (always 0 per spec for ChaCha20)
+  nonce: Uint8Array; // 12 bytes (ChaCha20 nonce; validated only for length)
   ciphertext: Uint8Array;
   mac: Uint8Array; // 64 bytes (SHAKE-256 HMAC)
 }
