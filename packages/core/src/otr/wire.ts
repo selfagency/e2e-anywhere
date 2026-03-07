@@ -9,9 +9,16 @@ import { PROTOCOL_VERSION, type OTRv4Header, OTRv4MessageType } from '../types.j
  * Layout: protocol_version (1byte) | message_type (1byte) | instance_tag (4bytes)
  */
 export function serializeHeader(header: OTRv4Header): Uint8Array {
-  if (header.instanceTag.byteLength !== 4) throw new Error('Invalid instance tag: expected 4 bytes');
-  if (header.protocolVersion !== PROTOCOL_VERSION)
+  if (header.protocolVersion !== PROTOCOL_VERSION) {
     throw new Error(`Invalid protocol version: expected ${PROTOCOL_VERSION}, got ${header.protocolVersion}`);
+  }
+  const validMessageTypes = Object.values(OTRv4MessageType).filter((v): v is number => typeof v === 'number');
+  if (!validMessageTypes.includes(header.messageType)) {
+    throw new Error(`Invalid message type: ${header.messageType}`);
+  }
+  if (header.instanceTag.byteLength !== 4) {
+    throw new Error(`Invalid instanceTag length: expected 4 bytes, got ${header.instanceTag.byteLength}`);
+  }
   const bytes = new Uint8Array(6);
   bytes[0] = header.protocolVersion;
   bytes[1] = header.messageType;
@@ -30,9 +37,15 @@ export function deserializeHeader(bytes: Uint8Array): OTRv4Header {
     throw new Error(`Invalid protocol version: expected ${PROTOCOL_VERSION}, got ${bytes[0]}`);
   }
 
+  const rawType = bytes[1];
+  const validMessageTypes = Object.values(OTRv4MessageType).filter((v): v is number => typeof v === 'number');
+  if (!validMessageTypes.includes(rawType)) {
+    throw new Error(`Invalid message type: ${rawType}`);
+  }
+
   return {
     protocolVersion: bytes[0],
-    messageType: bytes[1] as OTRv4MessageType,
+    messageType: rawType as OTRv4MessageType,
     instanceTag: bytes.slice(2, 6),
   };
 }
@@ -55,12 +68,19 @@ export function serializeDataMessage(msg: {
   mac: Uint8Array;
 }): Uint8Array {
   const headerBytes = serializeHeader(msg.header);
+  if (msg.ratchetKey.byteLength !== 57) {
+    throw new Error(`Invalid ratchetKey length: expected 57 bytes, got ${msg.ratchetKey.byteLength}`);
+  }
+  if (msg.identifier.byteLength !== 8) {
+    throw new Error(`Invalid identifier length: expected 8 bytes, got ${msg.identifier.byteLength}`);
+  }
+  if (msg.nonce.byteLength !== 12) {
+    throw new Error(`Invalid nonce length: expected 12 bytes, got ${msg.nonce.byteLength}`);
+  }
+  if (msg.mac.byteLength !== 64) {
+    throw new Error(`Invalid MAC length: expected 64 bytes, got ${msg.mac.byteLength}`);
+  }
   const ctLength = msg.ciphertext.byteLength;
-
-  if (msg.ratchetKey.byteLength !== 57) throw new Error('Invalid ratchet key: expected 57 bytes');
-  if (msg.identifier.byteLength !== 8) throw new Error('Invalid identifier: expected 8 bytes');
-  if (msg.nonce.byteLength !== 12) throw new Error('Invalid nonce: expected 12 bytes');
-  if (msg.mac.byteLength !== 64) throw new Error('Invalid MAC: expected 64 bytes');
 
   const bytes = new Uint8Array(6 + 1 + 57 + 8 + 12 + 4 + ctLength + 64);
   let offset = 0;
@@ -149,9 +169,8 @@ export function deserializeDataMessage(bytes: Uint8Array): {
   const mac = bytes.slice(offset, offset + 64);
   offset += 64;
 
-  const trailingDataMsg = bytes.byteLength - offset;
-  if (trailingDataMsg !== 0) {
-    throw new Error(`Trailing ${trailingDataMsg} byte(s) after data message`);
+  if (offset !== bytes.byteLength) {
+    throw new Error(`Trailing bytes in data message: ${bytes.byteLength - offset} extra byte(s)`);
   }
 
   return {
@@ -165,6 +184,8 @@ export function deserializeDataMessage(bytes: Uint8Array): {
   };
 }
 
+const MAX_UINT64 = 0xffffffffffffffffn;
+
 /**
  * Serialize a Client Profile to bytes.
  * Layout: Instance Tag (4) | Public Key (57) | Forging Key (57) |
@@ -177,10 +198,21 @@ export function serializeClientProfile(profile: {
   expiration: bigint;
   signature: Uint8Array;
 }): Uint8Array {
-  if (profile.instanceTag.byteLength !== 4) throw new Error('Invalid instance tag: expected 4 bytes');
-  if (profile.publicKey.byteLength !== 57) throw new Error('Invalid public key: expected 57 bytes');
-  if (profile.forgingKey.byteLength !== 57) throw new Error('Invalid forging key: expected 57 bytes');
-  if (profile.signature.byteLength !== 114) throw new Error('Invalid signature: expected 114 bytes');
+  if (profile.instanceTag.byteLength !== 4) {
+    throw new Error(`Invalid instanceTag length: expected 4 bytes, got ${profile.instanceTag.byteLength}`);
+  }
+  if (profile.publicKey.byteLength !== 57) {
+    throw new Error(`Invalid publicKey length: expected 57 bytes, got ${profile.publicKey.byteLength}`);
+  }
+  if (profile.forgingKey.byteLength !== 57) {
+    throw new Error(`Invalid forgingKey length: expected 57 bytes, got ${profile.forgingKey.byteLength}`);
+  }
+  if (profile.expiration < 0n || profile.expiration > MAX_UINT64) {
+    throw new Error(`Invalid expiration value: ${profile.expiration} is outside uint64 range`);
+  }
+  if (profile.signature.byteLength !== 114) {
+    throw new Error(`Invalid signature length: expected 114 bytes, got ${profile.signature.byteLength}`);
+  }
 
   const bytes = new Uint8Array(4 + 57 + 57 + 8 + 114);
   let offset = 0;
@@ -243,10 +275,12 @@ export function deserializeClientProfile(bytes: Uint8Array): {
 export function serializeTLVs(tlvs: { type: number; value: Uint8Array }[]): Uint8Array {
   let totalLen = 0;
   for (const tlv of tlvs) {
-    if (!Number.isInteger(tlv.type) || tlv.type < 0 || tlv.type > 65535)
-      throw new Error(`TLV type ${tlv.type} out of range for uint16`);
-    if (tlv.value.byteLength > 65535)
-      throw new Error(`TLV value length ${tlv.value.byteLength} exceeds uint16 maximum (65535)`);
+    if (tlv.type < 0 || tlv.type > 0xffff) {
+      throw new Error(`TLV type ${tlv.type} is out of uint16 range`);
+    }
+    if (tlv.value.byteLength > 0xffff) {
+      throw new Error(`TLV value length ${tlv.value.byteLength} is out of uint16 range`);
+    }
     totalLen += 4 + tlv.value.byteLength;
   }
 
@@ -290,8 +324,7 @@ export function deserializeTLVs(bytes: Uint8Array): { type: number; value: Uint8
   }
 
   if (offset !== bytes.byteLength) {
-    const remaining = bytes.byteLength - offset;
-    throw new Error(`Trailing ${remaining} byte(s) after TLV records`);
+    throw new Error(`Malformed TLV stream: ${bytes.byteLength - offset} trailing byte(s)`);
   }
 
   return tlvs;
