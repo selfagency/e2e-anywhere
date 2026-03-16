@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "i18next": "25.8.14",
+    "i18next": "25.8.18",
     "web-vitals": "5.1.0"
   }
 }
